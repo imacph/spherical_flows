@@ -20,6 +20,10 @@ def trun_fact(l,m):
 def sphrharm(l,m,theta,phi):
     # spherical harmonics degree l order m 
     
+    if l < m:
+        
+        N = 0
+    
     if m == 0:
         N = ((2*l+1)/4/np.pi )**(1/2)
     
@@ -122,7 +126,14 @@ class LN:
         self.orr_sqr_mat = self.orr_mat * self.orr_mat
             
     
-    
+        self.c_l = np.zeros(self.n_l+1)
+        
+        for l in range(self.l_min,self.l_max+2):
+            
+            i = l - self.l_min
+            
+            self.c_l[i] = np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))
+        
     
             
     def gen_deriv_mats_recomb(self):
@@ -732,13 +743,13 @@ class LN:
                 #diag_mat[-1,:] = self.eval_mat[-1,:]
                 diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
                 
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
                 
                 upper_mat[1:-1] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[1:-1]
                 upper_mat[1:-1] += -upper_fac * self.df1_mat[1:-1]
     
     
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
                 
                 lower_mat[1:-1] += lower_fac * l*(self.orr_mat*self.eval_mat)[1:-1]
                 lower_mat[1:-1] += -lower_fac * self.df1_mat[1:-1]
@@ -760,13 +771,13 @@ class LN:
                 diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
                 
                 
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
                 
                 upper_mat[2:-2,:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[2:-2,:]
                 upper_mat[2:-2,:] += -upper_fac * self.df1_mat[2:-2,:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
                 
                 lower_mat[2:-2,:] += lower_fac * l*(self.orr_mat*self.eval_mat)[2:-2,:]
                 lower_mat[2:-2,:] += -lower_fac * self.df1_mat[2:-2,:]
@@ -825,13 +836,13 @@ class LN:
                 diag_mat[1,:] = self.df1_mat_odd[0,:]
 
 
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
                 
                 upper_mat[2:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_even)[2:]
                 upper_mat[2:] += -upper_fac * self.df1_mat_even[2:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
                 
                 lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_even)[2:]
                 lower_mat[2:] += -lower_fac * self.df1_mat_even[2:]
@@ -849,13 +860,13 @@ class LN:
                 diag_mat[1,:] = self.df1_mat_even[0,:]
 
 
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
                 
                 upper_mat[2:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_odd)[2:]
                 upper_mat[2:] += -upper_fac * self.df1_mat_odd[2:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1)* self.c_l[l-self.l_min]
                 
                 lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_odd)[2:]
                 lower_mat[2:] += -lower_fac * self.df1_mat_odd[2:]
@@ -1397,6 +1408,9 @@ class LN:
         
         return vel_arr
     
+    
+
+    
     def calc_vel_grad(self,field,grad,tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,l_max):
         
         n_theta = len(theta_grid)
@@ -1477,7 +1491,7 @@ class LN:
                     i = l - self.l_min
                     
                     arr += self.m * (dr_pol_arr[i,:,np.newaxis]*1j * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])-self.m*tor_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -(np.cos(theta_grid[np.newaxis,:])*dr_pol_arr[i,:,np.newaxis]*1j*m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-tor_arr[i,:,np.newaxis] *(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]))
+                    arr += -np.cos(theta_grid[np.newaxis,:])*(dr_pol_arr[i,:,np.newaxis]*1j*m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-tor_arr[i,:,np.newaxis] *(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]))
                 
                 arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
             
@@ -1633,21 +1647,21 @@ def Ekman_kin(freq,eps,E,eta):
     return np.pi/3/np.sqrt(2) * eps**2*E**(1/2)/(1-eta)**4 * ((2-freq)**(3/2)+(2+freq)**(3/2)-1/5*((2-freq)**(5/2)+(2+freq)**(5/2)))
 
 
-    
-N = 80
-l_max = 50
-rad_ratio = 0.
+    '''
+N = 40
+l_max = 40
+rad_ratio = 0.0
 m = 0
 
-for_freq = np.sqrt(12/7)
+for_freq = 1
 ek = 1e-5
 bc_list = [['tor','t',1,2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
 
 t0 = time()
-LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=1)
+LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
 
-'''
+
 PDE_mat = LN_case.gen_PDE_matrix('tor',for_freq,ek)
 
 LU = spla.splu(PDE_mat)
@@ -1657,10 +1671,10 @@ tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
 rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
 soln = LU.solve(rhs_tor_odd)
 tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln('tor',soln)
+print(time()-t0)
 '''
 
-
-
+'''
 
 spat_mat = LN_case.gen_spatial_matrix_recomb('tor',ek)
 freq_mat = LN_case.gen_freq_matrix_recomb('tor',-1j)
@@ -1676,7 +1690,7 @@ soln = v[:,0]
 print(np.max(np.abs(soln)))
 tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln_recomb('tor',soln)
 
-
+'''
 
 
 '''
@@ -1758,15 +1772,61 @@ for k in tqdm(range(n_freq)):
 np.savetxt('freqs_it_7.txt',freq_arr)
 np.savetxt('ens_it_7.txt',en_arr)
 '''
-
-n_theta = N
+'''
+n_theta = LN_case.n_l
 theta_min = 0
-theta_max = np.pi/2
+theta_max = np.pi
 theta_grid = 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
 
-q_phi = LN_case.calc_vel_field('longitudinal',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
-q_r = LN_case.calc_vel_field('radial',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
-q_theta = LN_case.calc_vel_field('colatitudinal',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
+sphrharm_eval_mat = np.zeros((LN_case.n_l,LN_case.n_l))
+sphrharm_df1_mat = np.zeros((LN_case.n_l,LN_case.n_l))
+
+
+
+for l in range(LN_case.l_min,LN_case.l_max+1):
+    
+    i = l - LN_case.l_min
+    sphrharm_eval_mat[:,i] = np.real(sphrharm(l,LN_case.m,theta_grid,0))
+
+sphrharm_df1_mat[:,-1] = (LN_case.l_max+1) * LN_case.c_l[-1] * np.real(sphrharm(LN_case.l_max-1,LN_case.m,theta_grid,0))
+for l in range(LN_case.l_min,LN_case.l_max):
+    
+    i = l - LN_case.l_min
+    sphrharm_df1_mat[:,i] = np.real(l * LN_case.c_l[i+1] * sphrharm(l+1,LN_case.m,theta_grid,0) - (l+1)*LN_case.c_l[i] * sphrharm(l-1,LN_case.m,theta_grid,0))
+
+sphrharm_df1_mat *= 1/np.sin(theta_grid)[:,np.newaxis]
+
+l_arr = np.linspace(LN_case.l_min,LN_case.l_max,LN_case.n_l)
+
+sphrharm_df2_mat = -sphrharm_df1_mat * np.cos(theta_grid[:,np.newaxis])/np.sin(theta_grid[:,np.newaxis])
+sphrharm_df2_mat +=  ((LN_case.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_arr+1)[np.newaxis,:]) * sphrharm_eval_mat
+
+
+q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
+q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+q_phi = (-np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+
+dr_q_r = np.tensordot(sphrharm_eval_mat,dr_pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2 - 2 *q_r/LN_case.r_grid[:,np.newaxis]
+dr_q_theta = (np.tensordot(sphrharm_df1_mat,dr2_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_theta/LN_case.r_grid[:,np.newaxis]
+dr_q_phi = (-np.tensordot(sphrharm_df1_mat,dr_tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr2_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_phi/LN_case.r_grid[:,np.newaxis]
+
+ptheta_q_r =  np.tensordot(sphrharm_df1_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
+ptheta_q_theta = (np.tensordot(sphrharm_df2_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+ptheta_q_phi = (-np.tensordot(sphrharm_df2_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+
+dtheta_q_r = (ptheta_q_r-q_theta)/LN_case.r_grid[:,np.newaxis]
+dphi_q_r = (1j*m*q_r/np.sin(theta_grid)[np.newaxis,:]-q_phi)/LN_case.r_grid[:,np.newaxis]
+
+dtheta_q_theta = (ptheta_q_theta+q_r)/LN_case.r_grid[:,np.newaxis]
+dphi_q_theta = (1j*LN_case.m*q_theta-np.cos(theta_grid)[np.newaxis,:]*q_phi)/LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
+
+dtheta_q_phi = ptheta_q_phi/LN_case.r_grid[:,np.newaxis]
+dphi_q_phi = (1j*LN_case.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.sin(theta_grid)[np.newaxis,:]*q_r) /LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
+
+'''
+
+
+
 '''
 q_phi_eig = np.loadtxt('q_phi_eig.txt',dtype=complex)
 q_theta_eig = np.loadtxt('q_theta_eig.txt',dtype=complex)
@@ -1796,36 +1856,55 @@ inn_int *= 1/(4*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(mag*LN_case.r_grid[:,
 #np.savetxt('q_theta_eig.txt',q_theta)
 #np.savetxt('q_r_eig.txt',q_r)
 #np.savetxt('r_grid_eig.txt',LN_eig.r_grid)
+
+#dr_q_r = LN_case.calc_vel_grad('radial','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dtheta_q_r = LN_case.calc_vel_grad('radial','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dphi_q_r = LN_case.calc_vel_grad('radial','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+
+#dr_q_theta = LN_case.calc_vel_grad('colatitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dtheta_q_theta = LN_case.calc_vel_grad('colatitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dphi_q_theta = LN_case.calc_vel_grad('colatitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+
+#dr_q_phi = LN_case.calc_vel_grad('longitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dtheta_q_phi = LN_case.calc_vel_grad('longitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+#dphi_q_phi = LN_case.calc_vel_grad('longitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+
 '''
-dr_q_r = LN_case.calc_vel_grad('radial','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dtheta_q_r = LN_case.calc_vel_grad('radial','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dphi_q_r = LN_case.calc_vel_grad('radial','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+stress_rr = 2*dr_q_r
+stress_rtheta = dr_q_theta + dtheta_q_r
+stress_rphi = dr_q_phi + dphi_q_r
 
-dr_q_theta = LN_case.calc_vel_grad('colatitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dtheta_q_theta = LN_case.calc_vel_grad('colatitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dphi_q_theta = LN_case.calc_vel_grad('colatitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+stress_thetatheta = 2*dtheta_q_theta
+stress_thetaphi = dphi_q_theta + dtheta_q_phi
+stress_phiphi = 2*dphi_q_phi
 
-dr_q_phi = LN_case.calc_vel_grad('longitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dtheta_q_phi = LN_case.calc_vel_grad('longitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-dphi_q_phi = LN_case.calc_vel_grad('longitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
+disp = dr_q_r * np.conjugate(stress_rr)
+disp += dtheta_q_r * np.conjugate(stress_rtheta)
+disp += dphi_q_r * np.conjugate(stress_rphi)
+
+disp += dr_q_theta * np.conjugate(stress_rtheta)
+disp += dtheta_q_theta * np.conjugate(stress_thetatheta)
+disp += dphi_q_theta * np.conjugate(stress_thetaphi)
+
+disp += dr_q_phi * np.conjugate(stress_rphi)
+disp += dtheta_q_phi * np.conjugate(stress_thetaphi)
+disp += dphi_q_phi * np.conjugate(stress_phiphi)
+
+disp = 1/2 * np.real(disp)
 
 
-disp = 2*np.abs(dr_q_r)**2 + np.abs(dr_q_theta)**2 + np.abs(dr_q_phi)**2
-disp +=  np.abs(dtheta_q_r)**2 + 2*np.abs(dtheta_q_theta)**2 + np.abs(dtheta_q_phi)**2
-disp +=  np.abs(dphi_q_r)**2 + np.abs(dphi_q_theta)**2 + 2*np.abs(dphi_q_phi)**2
+#np.savetxt('q_phi.txt',q_phi)
+#np.savetxt('q_theta.txt',q_theta)
+#np.savetxt('q_r.txt',q_r)
+#np.savetxt('disp.txt',disp)
+#np.savetxt('theta_grid.txt',theta_grid)
+#np.savetxt('r_grid.txt',LN_case.r_grid)
 
-disp += np.real(dr_q_theta * np.conjugate(dtheta_q_r)) + np.real(dr_q_phi * np.conjugate(dphi_q_r)) 
-disp += np.real(dtheta_q_r * np.conjugate(dr_q_theta)) + np.real(dtheta_q_phi * np.conjugate(dphi_q_theta)) 
-disp += np.real(dphi_q_r * np.conjugate(dr_q_phi)) + np.real(dphi_q_theta * np.conjugate(dtheta_q_phi)) 
-
-disp *= 0.5
-
-
-tot_disp = ek*2*2*np.pi * np.trapz(np.sin(theta_grid) * np.trapz(LN_case.r_grid[::-1,np.newaxis]**2*disp[::-1,:],x=LN_case.r_grid[::-1],axis=0),x=theta_grid,axis=0)
+tot_disp = ek*2*np.pi * np.trapz(np.sin(theta_grid) * np.trapz(LN_case.r_grid[::-1,np.newaxis]**2*disp[::-1,:],x=LN_case.r_grid[::-1],axis=0),x=theta_grid,axis=0)
 
 print(tot_disp)
 print(tot_disp/Ekman_disp(for_freq,1,ek,rad_ratio))
-print(Ekman_disp(for_freq,1,ek,rad_ratio))
+#print(Ekman_disp(for_freq,1,ek,rad_ratio))
 
 
 
@@ -1833,13 +1912,12 @@ tau_phi_r =  dphi_q_r + dr_q_phi
 tau_theta_r = dtheta_q_r + dr_q_theta
 
 
-surf_power = 4*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
-
+surf_power = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
+print(surf_power-tot_disp)
 print(surf_power)
 print(surf_power/Ekman_disp(for_freq,1,ek,rad_ratio))
-'''
 
-
+en = 1/4*(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)
 
 fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
 
@@ -1851,7 +1929,7 @@ if rad_ratio == 0.0:
     ss = np.array([[LN_case.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
     zz = np.array([[LN_case.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
 
-field = np.imag(q_phi)
+field = np.abs(p_field)
 
 
 vmin = np.min(field)
@@ -1888,7 +1966,7 @@ if vmin < 0:
 elif vmin >= 0:
     
     
-    off=-20
+    off=-7
     top = 0
     norm = colors.LogNorm(vmin = 10**(off)*vmax,vmax=10**(top)*vmax)
     levels = np.logspace(max_dec+off,max_dec+top,100)
@@ -1905,6 +1983,6 @@ cbar = fig.colorbar(p)
 ax.set_aspect('equal')
 ax.axis('off')
 
-
+'''
 
 
