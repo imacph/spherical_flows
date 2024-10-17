@@ -2,6 +2,8 @@ import numpy as np
 from sphrflow_main import LN
 import scipy.sparse.linalg as spla
 from time import time
+
+
 def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
     
     t0 = time()
@@ -9,6 +11,8 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
     freqs = []
     steps = []
     k = step0
+    
+    
     while True:
         
         freq += step
@@ -18,7 +22,7 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
         print(k)
         soln = soln0
         res = np.inf
-
+        
         for i in range(n_it):
             
             freq_mat = (freq-freq0)*freq_mat_1
@@ -29,7 +33,7 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
             if res < tol:
                 freqs.append(freq)
                 steps.append(k)
-                np.savetxt('soln_{:d}.txt'.format(k),soln)
+                np.savetxt('revision_files/ek_65_pi6/soln_{:d}.txt'.format(k),soln)
                 
                 break
         
@@ -43,14 +47,15 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
     
 
 
-N = 200
-l_max = 60
-rad_ratio = 0.0
+N =160
+l_max =120
+rad_ratio = 0.
 m = 0
 
-for_freq = 0.939
-ek = 1e-4
-bc_list = [['tor','t',1,2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
+#N= 100, l_max = 120, E = 1e-5
+ek = 10**(-6.5)
+bc_list = [['pol','t',2,2/3*np.sqrt(2*np.pi/15)/(1-rad_ratio)**2]]
+bc_list = [['tor','t',1,np.sqrt(ek)*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
 
 LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
@@ -59,15 +64,17 @@ tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
 rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
 
 
-max_outer = 2000
-k = 86
-freq0 = 0.086
+max_outer = 200
+k =196
+freq0 = 2*np.sin(np.pi/6)-2*ek**(0.23)
 
+#freq0 = 0
+n_it = 30
+tol = 1e-4
+step =4*ek**(0.23)/max_outer
 
-n_it = 50
-tol = 1e-6
-step = 1e-3
-
+freq0+=k*step
+#step = 1e-4
 freq_mat_1 = LN_case.gen_freq_matrix('tor',1.)
 while k < max_outer:
     
@@ -79,10 +86,12 @@ while k < max_outer:
     
     freqs,steps = iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs_tor_odd,step0=k)
 
-    print(freqs[-1],steps[-1])
-    
-    freq0 = freqs[-1]
-    k = steps[-1]
+    if len(freqs) > 0:
+        print(freqs[-1],steps[-1])
+        
+        
+        freq0 = freqs[-1]
+        k = steps[-1]
 
 
 

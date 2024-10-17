@@ -10,11 +10,13 @@ def Ekman_disp(freq,eps,E,eta):
 
 
 
-N = 200
-l_max = 60
-rad_ratio = 0.0
+N = 100
+l_max = 80
+N = 240
+l_max = 200
+rad_ratio = 0.
 m = 0
-ek = 1e-4
+ek = 10**(-8)
 
 LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
 
@@ -49,16 +51,35 @@ sphrharm_df2_mat +=  ((LN_case.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_a
 
 
 
-n_it = 340
-step = 1e-3
+n_it =3000
+step = 4*(ek)**(0.23)/200
+step = 3.33333333e-4
 disp_arr = np.zeros(n_it)
 surf_arr = np.zeros_like(disp_arr)
-for k in range(1,n_it+1):
-    soln = np.loadtxt('soln_{:d}.txt'.format(k),dtype=complex)
+kin_arr = np.zeros_like(disp_arr)
+#kin_spec = np.zeros((n_it,LN_case.n_l))
+for k in tqdm(range(1,n_it+1)):
+    soln = np.loadtxt('C:/Users/ianma/Desktop/solns/soln_{:d}.txt'.format(k),dtype=complex)
     
     tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln('tor',soln)
-    
-    
+    '''
+    for i in range(LN_case.n_l):
+        
+        
+        sphrharm_eval_single = np.zeros_like(sphrharm_eval_mat)
+        sphrharm_df_single  = np.zeros_like(sphrharm_eval_mat) 
+        sphrharm_eval_single[:,i] = sphrharm_eval_mat[:,i]
+        sphrharm_df_single[:,i] = sphrharm_df1_mat[:,i]
+        
+        q_r = np.tensordot(sphrharm_eval_single,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
+        q_theta = (np.tensordot(sphrharm_df_single,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_single,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+        q_phi = (-np.tensordot(sphrharm_df_single,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_single,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+        
+        
+        en = 1/4 * (np.abs(q_r)+np.abs(q_theta)+np.abs(q_phi))
+        
+        kin_spec[k-1,i] = 2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(en*LN_case.r_grid[::-1][:,np.newaxis]**2,x=LN_case.r_grid[::-1],axis=0),x=theta_grid)
+    '''
     
     q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
     q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
@@ -111,17 +132,42 @@ for k in range(1,n_it+1):
 
     surf_power = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
 
-    disp_arr[k-1] = tot_disp
+    disp_arr[k-1] = surf_power
     surf_arr[k-1] = surf_power
+    
+    kin = 1/4 * (np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)
+    
+    kin_arr[k-1] = -2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(kin*LN_case.r_grid[:,np.newaxis]**2,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
 
 
+fig,ax = plt.subplots(1,1,figsize=(8,5),dpi=200)
 
-fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
+freq0 = 1.315909340078351
+freq0 = -1.4406
+freq0 = -1.0614748821994373
+#freq0 = -1.24538
 
+freq0 = 2*np.sin(np.pi/6)
+freqs = np.linspace(step,n_it*step,n_it)+freq0-2*ek**(0.23)
 freqs = np.linspace(step,n_it*step,n_it)
-ax.plot(freqs,disp_arr/Ekman_disp(freqs,1,ek,0))
-ax.plot(freqs,surf_arr/Ekman_disp(freqs,1,ek,0))
-print(np.average(np.abs(disp_arr-surf_arr)))
+#np.savetxt('revision_files/ek_65_pi6/freqs.txt',freqs)
+#np.savetxt('revision_files/ek_65_pi6/disp.txt',disp_arr)
+#np.savetxt('revision_files/ek_65_pi6/kin.txt',kin_arr)
+np.savetxt('C:/Users/ianma/Desktop/solns/freqs.txt',freqs)
+np.savetxt('C:/Users/ianma/Desktop/solns/disp.txt',disp_arr)
+np.savetxt('C:/Users/ianma/Desktop/solns/kin.txt',kin_arr)
+
+#np.savetxt('kin_spec_4_topo.txt',kin_spec)
+
+ax.plot(freqs,disp_arr)
+#ax.plot(freqs,disp_arr/Ekman_disp(freqs,1,ek,0))
+#ax.plot(freqs,surf_arr/Ekman_disp(freqs,1,ek,0))
+print(np.max(np.abs(disp_arr-surf_arr)/disp_arr))
 #ax.plot(freqs,Ekman_disp(freqs,1,ek,0))
 
-#ax.set_ylim(0.85,1.08)
+#ax.set_ylim(0.85,1.04)
+ax.axvline(freq0)
+
+#prelim = np.loadtxt('DNS_disp_E4.txt')
+
+#ax.plot(prelim[:,0],prelim[:,1],ls='none',marker='s',mfc='none',ms=3,color='red',zorder=10)
