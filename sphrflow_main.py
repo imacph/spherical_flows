@@ -42,11 +42,51 @@ def sphrharm(l,m,theta,phi):
     
     return N*lpmv(m,l,np.cos(theta))*np.exp(1j*m*phi)
 
+def l_setup(m,l_max):
+    
+    if m == 0:
+        
+        l_min = 1
+    
+    else:
+        
+        l_min = m
+    
+    if l_min % 2 == 0:
+        
+        l_odd = [i for i in range(l_min+1,l_max,2)]
+        l_even = [i for i in range(l_min+2,l_max,2)]
+    
+    else:
+        
+        l_odd = [i for i in range(l_min+2,l_max,2)]
+        l_even = [i for i in range(l_min+1,l_max,2)]
+        
+    if l_min % 2 == 0:
+        
+        l_even_full = [l_min] + l_even
+        l_odd_full = l_odd
+    else:
+        
+        l_odd_full = [l_min] + l_odd
+        l_even_full = l_even
+        
+    if l_max % 2 == 0:
+        
+        l_even_full = l_even_full + [l_max]
+    
+    else:
+        
+        l_odd_full = l_odd_full + [l_max]
+        
+    n_l = l_max - l_min + 1
+        
+    return l_min,n_l,l_odd,l_even,l_even_full,l_odd_full
 
         
-class LN:
+class Matrix_builder_forced:
     
-    def __init__(self,N,rad_ratio,m,l_max,eigen_flag = 0):
+    def __init__(self,N,rad_ratio,m,l_max):
         
         self.N = N
         self.rad_ratio = rad_ratio
@@ -59,68 +99,18 @@ class LN:
         self.r_fac = 2/(self.r_end-self.r_start)
         
         
-        if not eigen_flag:
+        if self.rad_ratio > 0.0:
+            self.x_grid = np.cos(np.linspace(0,N,N+1)*np.pi/N)
+            self.r_grid = self.x_grid * (self.r_end-self.r_start)/2 + (self.r_end+self.r_start)/2
+            self.eval_mat,self.df1_mat,self.df2_mat,self.df4_mat = self.gen_deriv_mats()
         
-            if self.rad_ratio > 0.0:
-                self.x_grid = np.cos(np.linspace(0,N,N+1)*np.pi/N)
-                self.r_grid = self.x_grid * (self.r_end - self.r_start)/2 + (self.r_end + self.r_start)/2
-                self.eval_mat,self.df1_mat,self.df2_mat,self.df4_mat = self.gen_deriv_mats()
-                
-            elif self.rad_ratio == 0.0:
-                self.x_grid = np.cos(np.linspace(0,N,N+1)*np.pi/(2*N+1))
-                self.r_grid = self.x_grid
-                self.eval_mat_even,self.eval_mat_odd,self.df1_mat_even,self.df1_mat_odd,self.df2_mat_even,self.df2_mat_odd,self.df4_mat_even,self.df4_mat_odd = self.gen_deriv_mats()
+        elif self.rad_ratio == 0.0:
+            self.x_grid = np.cos(np.linspace(0,N,N+1)*np.pi/(2*N+1))
+            self.r_grid = self.x_grid
+            self.eval_mat_even,self.eval_mat_odd,self.df1_mat_even,self.df1_mat_odd,self.df2_mat_even,self.df2_mat_odd,self.df4_mat_even,self.df4_mat_odd = self.gen_deriv_mats()
         
-        else:
-            
-            if self.rad_ratio > 0.0:
-                pass
-                
-            elif self.rad_ratio == 0.0:
-                
-                self.x_grid = np.cos(np.linspace(1,N+1,N+1)*np.pi/(2*N+5))
-                
-                self.r_grid = self.x_grid
-                self.eval_mat_odd_tor,self.eval_mat_even_tor,self.df1_mat_odd_tor,self.df1_mat_even_tor,self.df2_mat_odd_tor,self.df2_mat_even_tor,self.df4_mat_odd_tor,self.df4_mat_even_tor,self.eval_mat_odd_pol,self.eval_mat_even_pol,self.df1_mat_odd_pol,self.df1_mat_even_pol,self.df2_mat_odd_pol,self.df2_mat_even_pol,self.df4_mat_odd_pol,self.df4_mat_even_pol = self.gen_deriv_mats_recomb()
-                        
+        self.l_min,self.n_l,self.l_odd,self.l_even,self.l_even_full,self.l_odd_full = l_setup(self.m,self.l_max)
         
-        if self.m == 0:
-            
-            self.l_min = 1
-        
-        else:
-            
-            self.l_min = self.m
-        
-        if self.l_min % 2 == 0:
-            
-            self.l_odd = [i for i in range(self.l_min+1,self.l_max,2)]
-            self.l_even = [i for i in range(self.l_min+2,self.l_max,2)]
-        
-        else:
-            
-            self.l_odd = [i for i in range(self.l_min+2,self.l_max,2)]
-            self.l_even = [i for i in range(self.l_min+1,self.l_max,2)]
-            
-        if self.l_min % 2 == 0:
-            
-            self.l_even_full = [self.l_min] + self.l_even
-            self.l_odd_full = self.l_odd
-        else:
-            
-            self.l_odd_full = [self.l_min] + self.l_odd
-            self.l_even_full = self.l_even
-            
-        if self.l_max % 2 == 0:
-            
-            self.l_even_full = self.l_even_full + [self.l_max]
-        
-        else:
-            
-            self.l_odd_full = self.l_odd_full + [self.l_max]
-            
-            
-        self.n_l = self.l_max - self.l_min + 1
         
         self.orr_mat = sp.csr_matrix(np.diag(1/self.r_grid),dtype=complex)
         self.orr_sqr_mat = self.orr_mat * self.orr_mat
@@ -136,101 +126,6 @@ class LN:
         
     
             
-    def gen_deriv_mats_recomb(self):
-        
-        
-        if self.rad_ratio == 0.0:
-            df1_mat = sp.csr_matrix((self.N+1,self.N+3))
-            df2_mat = sp.csr_matrix((self.N+1,self.N+3))
-            df3_mat = sp.csr_matrix((self.N+1,self.N+3))
-            df4_mat = sp.csr_matrix((self.N+1,self.N+3))
-            eval_mat = sp.csr_matrix((self.N+1,self.N+3))
-            
-            
-            grid_diag = sp.csr_matrix(np.diag(self.x_grid),dtype=complex)
-            grid_sqr_diag = grid_diag * grid_diag
-            
-            
-            for i in range(self.N+3):
-
-                n = 2*i+1
-                
-                eval_mat[:,i] = np.cos(n*np.arccos(self.x_grid))
-                
-
-                df1_mat[:,i] = n * np.sin(n*np.arccos(self.x_grid))/np.sin(np.arccos(self.x_grid))
-                df2_mat[:,i] = n*self.x_grid*np.sin(n*np.arccos(self.x_grid))/(1-self.x_grid**2)**(3/2) - n*n * np.cos(n*np.arccos(self.x_grid))/(1-self.x_grid**2)
-                df3_mat[:,i] = n/(1-self.x_grid**2)**(5/2) * ((n**2*(self.x_grid**2-1)+2*self.x_grid**2+1)*np.sin(n*np.arccos(self.x_grid))-3*n*self.x_grid*np.sqrt(1-self.x_grid**2)*np.cos(n*np.arccos(self.x_grid)))
-                
-                df4_mat[:,i] = n * ((n*(n**2*(self.x_grid**2-1)+11*self.x_grid**2+4)*np.cos(n*np.arccos(self.x_grid)))/(self.x_grid**2-1)**3+(3*self.x_grid*(2*n**2*(self.x_grid**2-1)+2*self.x_grid**2+3)*np.sin(n*np.arccos(self.x_grid)))/(1-self.x_grid**2)**(7/2))
-                
-                
-            self.df4_mat = df4_mat
-            self.df1_mat = df1_mat
-            self.df2_mat = df2_mat
-            self.df3_mat = df3_mat
-            self.eval_mat = eval_mat
-            df1_mat_odd_tor = sp.csr_matrix((self.N+1,self.N+1))
-            df2_mat_odd_tor = sp.csr_matrix((self.N+1,self.N+1))
-            df4_mat_odd_tor = sp.csr_matrix((self.N+1,self.N+1))
-            eval_mat_odd_tor = sp.csr_matrix((self.N+1,self.N+1))
-            
-            df1_mat_even_tor = sp.csr_matrix((self.N+1,self.N+1))
-            df2_mat_even_tor = sp.csr_matrix((self.N+1,self.N+1))
-            df4_mat_even_tor = sp.csr_matrix((self.N+1,self.N+1))
-            eval_mat_even_tor = sp.csr_matrix((self.N+1,self.N+1))
-            
-            df1_mat_odd_pol = sp.csr_matrix((self.N+1,self.N+1))
-            df2_mat_odd_pol = sp.csr_matrix((self.N+1,self.N+1))
-            df4_mat_odd_pol = sp.csr_matrix((self.N+1,self.N+1))
-            eval_mat_odd_pol = sp.csr_matrix((self.N+1,self.N+1))
-            
-            df1_mat_even_pol = sp.csr_matrix((self.N+1,self.N+1))
-            df2_mat_even_pol = sp.csr_matrix((self.N+1,self.N+1))
-            df4_mat_even_pol = sp.csr_matrix((self.N+1,self.N+1))
-            eval_mat_even_pol = sp.csr_matrix((self.N+1,self.N+1))
-            
-            
-            for i in range(self.N+1):
-                
-                n0 = 2*i + 1
-                n1 = 2*i + 3
-                n2 = 2*i + 5
-                
-                B = (n0**2 - n2**2)/(n1**2-n0**2)
-                A = -(B+1)
-                
-                
-                eval_mat_even_tor[:,i] = grid_diag * (eval_mat[:,i] - eval_mat[:,i+1])
-                
-                df1_mat_even_tor[:,i] = grid_diag*(df1_mat[:,i] - df1_mat[:,i+1]) + (eval_mat[:,i] - eval_mat[:,i+1])
-                df2_mat_even_tor[:,i] = grid_diag*(df2_mat[:,i] - df2_mat[:,i+1]) + 2*(df1_mat[:,i] - df1_mat[:,i+1])
-                df4_mat_even_tor[:,i] = grid_diag*(df4_mat[:,i] - df4_mat[:,i+1])  + 4 *(df3_mat[:,i] - df3_mat[:,i+1])
-                
-                
-                eval_mat_odd_tor[:,i] = grid_sqr_diag * (eval_mat[:,i] - eval_mat[:,i+1])
-                
-                df1_mat_odd_tor[:,i] = grid_sqr_diag * (df1_mat[:,i] - df1_mat[:,i+1])  + 2*grid_diag*(eval_mat[:,i] - eval_mat[:,i+1])
-                df2_mat_odd_tor[:,i] = grid_sqr_diag * (df2_mat[:,i] - df2_mat[:,i+1])   + 4*grid_diag*(df1_mat[:,i] - df1_mat[:,i+1]) + 2 * (eval_mat[:,i] - eval_mat[:,i+1])
-                df4_mat_odd_tor[:,i] = grid_sqr_diag  * (df4_mat[:,i] - df4_mat[:,i+1]) + 8 * grid_diag * (df3_mat[:,i] - df3_mat[:,i+1]) + 12 * (df2_mat[:,i] - df2_mat[:,i+1])
-                
-                
-                eval_mat_even_pol[:,i] = grid_diag * (A*eval_mat[:,i]+B*eval_mat[:,i+1]+eval_mat[:,i+2])
-
-                df1_mat_even_pol[:,i] = grid_diag*(A*df1_mat[:,i]+B*df1_mat[:,i+1]+df1_mat[:,i+2]) + (A*eval_mat[:,i]+B*eval_mat[:,i+1]+eval_mat[:,i+2])
-                df2_mat_even_pol[:,i] = grid_diag*(A*df2_mat[:,i]+B*df2_mat[:,i+1]+df2_mat[:,i+2]) + 2*(A*df1_mat[:,i]+B*df1_mat[:,i+1]+df1_mat[:,i+2])
-                df4_mat_even_pol[:,i] = grid_diag*(A*df4_mat[:,i]+B*df4_mat[:,i+1]+df4_mat[:,i+2])  + 4 *(A*df3_mat[:,i]+B*df3_mat[:,i+1]+df3_mat[:,i+2])
-                
-                
-                eval_mat_odd_pol[:,i] = grid_sqr_diag * (A*eval_mat[:,i]+B*eval_mat[:,i+1]+eval_mat[:,i+2])
-                
-                df1_mat_odd_pol[:,i] = grid_sqr_diag * (A*df1_mat[:,i]+B*df1_mat[:,i+1]+df1_mat[:,i+2])  + 2*grid_diag*(A*eval_mat[:,i]+B*eval_mat[:,i+1]+eval_mat[:,i+2])
-                df2_mat_odd_pol[:,i] = grid_sqr_diag * (A*df2_mat[:,i]+B*df2_mat[:,i+1]+df2_mat[:,i+2])   + 4*grid_diag*(A*df1_mat[:,i]+B*df1_mat[:,i+1]+df1_mat[:,i+2]) + 2 * (A*eval_mat[:,i]+B*eval_mat[:,i+1]+eval_mat[:,i+2])
-                df4_mat_odd_pol[:,i] = grid_sqr_diag  * (A*df4_mat[:,i]+B*df4_mat[:,i+1]+df4_mat[:,i+2])  + 8 * grid_diag * (A*df3_mat[:,i]+B*df3_mat[:,i+1]+df3_mat[:,i+2])  + 12 * (A*df2_mat[:,i]+B*df2_mat[:,i+1]+df2_mat[:,i+2]) 
-        
-        return (eval_mat_odd_tor,eval_mat_even_tor,df1_mat_odd_tor,df1_mat_even_tor,df2_mat_odd_tor,df2_mat_even_tor,df4_mat_odd_tor,df4_mat_even_tor,
-                eval_mat_odd_pol,eval_mat_even_pol,df1_mat_odd_pol,df1_mat_even_pol,df2_mat_odd_pol,df2_mat_even_pol,df4_mat_odd_pol,df4_mat_even_pol)
-    
 
     def gen_deriv_mats(self):
         
@@ -324,201 +219,8 @@ class LN:
             return eval_mat_even,eval_mat_odd,df1_mat_even,df1_mat_odd,df2_mat_even,df2_mat_odd,df4_mat_even,df4_mat_odd
     
     
-    def gen_block_diag_freq_recomb(self,field,l,for_freq):
-    
-        lp = l*(l+1)
-        lp2 = lp*lp
-        
-        diag_mat = sp.csr_matrix((self.N+1,self.N+1),dtype=complex)
-        
-        if self.rad_ratio > 0.0:
-        
-            if field == 'toroidal':
-                
-                diag_mat += (1j *lp*for_freq*self.eval_mat)
-            
-                
-            elif field == 'poloidal':
-                
-                diag_mat = 1j * lp2*for_freq  * (self.orr_sqr_mat*self.eval_mat)
-
-                diag_mat +=-1j * lp*for_freq* self.df2_mat
-
-        
-        elif self.rad_ratio == 0.0:
-            
-            if field == 'toroidal' and l % 2 == 0:
-                
-                diag_mat += (1j * lp*for_freq * self.eval_mat_odd_tor)
 
 
-            elif field == 'toroidal':
-                
-                diag_mat += (1j * lp*for_freq * self.eval_mat_even_tor)
-
-
-                
-                
-            elif field == 'poloidal' and l % 2 == 0:
-                
-                diag_mat = 1j * lp2*for_freq * (self.orr_sqr_mat*self.eval_mat_odd_pol)
-
-                diag_mat +=-1j * lp*for_freq* self.df2_mat_odd_pol
-
-                
-
-
-            elif field == 'poloidal':
-                
-                diag_mat = 1j * lp2*for_freq * (self.orr_sqr_mat*self.eval_mat_even_pol)
-
-                diag_mat +=-1j * lp*for_freq* self.df2_mat_even_pol
-
-
-        return diag_mat
-    
-    
-    def gen_block_row_spatial_recomb(self,field,l,ek):
-        
-        lp = l*(l+1)
-        lp2 = lp*lp
-        
-        lower_mat = sp.csr_matrix((self.N+1,self.N+1),dtype=complex)
-        upper_mat = sp.csr_matrix((self.N+1,self.N+1),dtype=complex)
-        diag_mat = sp.csr_matrix((self.N+1,self.N+1),dtype=complex)
-        
-        if self.rad_ratio > 0.0:
-        
-            if field == 'toroidal':
-                
-                diag_mat[1:-1,:] += (1j * (-2*self.m) * self.eval_mat + ek*lp2*self.orr_sqr_mat*self.eval_mat)[1:-1,:]
-                diag_mat[1:-1,:] += -lp * ek * self.df2_mat[1:-1,:]
-                
-                diag_mat[0,:] = self.eval_mat[0,:]
-                #diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
-                
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat[1:-1] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[1:-1]
-                upper_mat[1:-1] += -upper_fac * self.df1_mat[1:-1]
-    
-    
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat[1:-1] += lower_fac * l*(self.orr_mat*self.eval_mat)[1:-1]
-                lower_mat[1:-1] += -lower_fac * self.df1_mat[1:-1]
-                
-                
-            elif field == 'poloidal':
-                
-                diag_mat[2:-2,:] = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat)[2:-2,:]
-                diag_mat[2:-2,:] +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat)[2:-2,:]
-                diag_mat[2:-2,:] += 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat)[2:-2,:]
-                diag_mat[2:-2,:] +=-1j * (-2*self.m)* self.df2_mat[2:-2,:]
-                diag_mat[2:-2,:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat)[2:-2,:]
-                diag_mat[2:-2,:] += lp * ek * self.df4_mat[2:-2,:]
-                
-                diag_mat[0,:] = self.eval_mat[0,:]
-                diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[1,:] = self.df1_mat[0,:]
-                #diag_mat[-2,:] = self.df1_mat[-1,:]
-                diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
-                
-                
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat[2:-2,:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[2:-2,:]
-                upper_mat[2:-2,:] += -upper_fac * self.df1_mat[2:-2,:]
-                
-            
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat[2:-2,:] += lower_fac * l*(self.orr_mat*self.eval_mat)[2:-2,:]
-                lower_mat[2:-2,:] += -lower_fac * self.df1_mat[2:-2,:]
-                
-            
-        
-        elif self.rad_ratio == 0.0:
-            
-            if field == 'toroidal' and l % 2 == 0:
-                
-                diag_mat += (1j * (-2*self.m) * self.eval_mat_odd_tor + ek*lp2*self.orr_sqr_mat*self.eval_mat_odd_tor)
-                diag_mat += -lp * ek * self.df2_mat_odd_tor
-                
-
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_even_pol)
-                upper_mat += -upper_fac * self.df1_mat_even_pol
-    
-    
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_even_pol)
-                lower_mat += -lower_fac * self.df1_mat_even_pol
-                
-            elif field == 'toroidal':
-                
-                diag_mat += (1j * (-2*self.m) * self.eval_mat_even_tor + ek*lp2*self.orr_sqr_mat*self.eval_mat_even_tor)
-                diag_mat += -lp * ek * self.df2_mat_even_tor
-                
-
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_odd_pol)
-                upper_mat += -upper_fac * self.df1_mat_odd_pol
-    
-    
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_odd_pol)
-                lower_mat += -lower_fac * self.df1_mat_odd_pol
-                
-                
-            elif field == 'poloidal' and l % 2 == 0:
-                
-                diag_mat = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat_odd_pol)
-                diag_mat +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat_odd_pol)
-                diag_mat+= 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat_odd_pol)
-                diag_mat +=-1j * (-2*self.m)* self.df2_mat_odd_pol
-                diag_mat += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_odd_pol)
-                diag_mat += lp * ek * self.df4_mat_odd_pol
-                
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_even_tor)
-                upper_mat += -upper_fac * self.df1_mat_even_tor
-                
-            
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_even_tor)
-                lower_mat += -lower_fac * self.df1_mat_even_tor
-                
-            elif field == 'poloidal':
-                
-                diag_mat = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat_even_pol)
-                diag_mat +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat_even_pol)
-                diag_mat += 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat_even_pol)
-                diag_mat +=-1j * (-2*self.m)* self.df2_mat_even_pol
-                diag_mat += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_even_pol)
-                diag_mat += lp * ek * self.df4_mat_even_pol
-                
-
-                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
-                
-                upper_mat += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_odd_tor)
-                upper_mat += -upper_fac * self.df1_mat_odd_tor
-                
-            
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
-                
-                lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_odd_tor)
-                lower_mat += -lower_fac * self.df1_mat_odd_tor
-            
-        return diag_mat,lower_mat,upper_mat
-    
     def gen_block_diag_freq(self,field,l,for_freq):
         
         lp = l*(l+1)
@@ -872,144 +574,8 @@ class LN:
                 lower_mat[2:] += -lower_fac * self.df1_mat_odd[2:]
             
         return diag_mat,lower_mat,upper_mat
-    
-    
-    def gen_freq_matrix_recomb(self,odd_flag,for_freq):
-        
-        if odd_flag == 'tor':
-            
-            odd_field = 'toroidal'
-            even_field = 'poloidal'
-
-        elif odd_flag == 'pol':
-        
-            even_field = 'toroidal'
-            odd_field = 'poloidal'
 
 
-        bmat_array = [[None for i in range(self.n_l)] for j in range(self.n_l)]
-        
-        
-        l = self.l_min
-        i = l-self.l_min
-        
-        if l % 2 == 1:
-            
-    
-            diag_mat = self.gen_block_diag_freq_recomb(odd_field,l,for_freq)
-            
-        elif l % 2 == 0:
-            
-            diag_mat = self.gen_block_diag_freq_recomb(even_field,l,for_freq)
-            
-            
-        bmat_array[i][i] = diag_mat
-
-        
-        
-        for l in self.l_odd:
-            
-            i = l-self.l_min
-            diag_mat= self.gen_block_diag_freq_recomb(odd_field,l,for_freq)
-            
-            bmat_array[i][i] = diag_mat
-
-            
-        for l in self.l_even:
-            
-            i = l-self.l_min
-            diag_mat = self.gen_block_diag_freq_recomb(even_field,l,for_freq)
-            
-            bmat_array[i][i] = diag_mat
-
-            
-        l = self.l_max
-        i = l-self.l_min
-        if l % 2 == 1:
-        
-            diag_mat = self.gen_block_diag_freq_recomb(odd_field,l,for_freq)
-            
-            
-        elif l % 2 == 0:
-            
-            diag_mat = self.gen_block_diag_freq_recomb(even_field,l,for_freq)
-            
-        
-        bmat_array[i][i] = diag_mat
-
-        
-    
-        return sp.bmat(bmat_array,format='csr')
-        
-    
-    def gen_spatial_matrix_recomb(self,odd_flag,ek):
-        
-        if odd_flag == 'tor':
-            
-            odd_field = 'toroidal'
-            even_field = 'poloidal'
-
-        elif odd_flag == 'pol':
-        
-            even_field = 'toroidal'
-            odd_field = 'poloidal'
-
-
-        bmat_array = [[None for i in range(self.n_l)] for j in range(self.n_l)]
-        
-        
-        l = self.l_min
-        i = l-self.l_min
-        
-        if l % 2 == 1:
-        
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(odd_field,l,ek)
-            
-        elif l % 2 == 0:
-            
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(even_field,l,ek)
-            
-            
-        bmat_array[i][i] = diag_mat
-        bmat_array[i][i+1] = upper_mat
-        
-        
-        for l in self.l_odd:
-            
-            i = l-self.l_min
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(odd_field,l,ek)
-            
-            bmat_array[i][i] = diag_mat
-            bmat_array[i][i+1] = upper_mat
-            bmat_array[i][i-1] = lower_mat
-            
-        for l in self.l_even:
-            
-            i = l-self.l_min
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(even_field,l,ek)
-            
-            bmat_array[i][i] = diag_mat
-            bmat_array[i][i+1] = upper_mat
-            bmat_array[i][i-1] = lower_mat
-            
-        l = self.l_max
-        i = l-self.l_min
-        if l % 2 == 1:
-        
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(odd_field,l,ek)
-            
-            
-        elif l % 2 == 0:
-            
-            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial_recomb(even_field,l,ek)
-            
-        
-        bmat_array[i][i] = diag_mat
-        bmat_array[i][i-1] = lower_mat
-        
-    
-        return sp.bmat(bmat_array,format='csr')
-    
     
     
     def gen_freq_matrix(self,odd_flag,for_freq):
@@ -1217,81 +783,36 @@ class LN:
     
         return sp.bmat(bmat_array,format='csr')
         
+class Soln_forced:
     
-    def process_soln_recomb(self,odd_flag,soln):
+    def __init__(self,soln,mat_builder):
         
-        tor_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
-        dr_tor_arr = np.zeros_like(tor_arr)
-        pol_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
-        dr_pol_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
-        dr2_pol_arr = np.zeros_like(tor_arr)
-        
-        if self.rad_ratio > 0.0:
-            if odd_flag == 'tor':
-                
-                for l in self.l_odd_full:
-                    
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-                for l in self.l_even_full:
-                    
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-            if odd_flag == 'pol':
-                
-                for l in self.l_even_full:
-                    
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-                for l in self.l_odd_full:
-                    
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-        elif self.rad_ratio == 0.0:
-            
-            if odd_flag == 'tor':
-                
-                for l in self.l_odd_full:
-                    
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_even_tor @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_even_tor @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-                for l in self.l_even_full:
-                    
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_odd_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_odd_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_odd_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-            if odd_flag == 'pol':
-                
-                for l in self.l_even_full:
-                    
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_odd_tor @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_odd_tor @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    
-                for l in self.l_odd_full:
-                    
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_even_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_even_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_even_pol @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-            
-        return tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr
+        self.n_l = mat_builder.n_l
+        self.N = mat_builder.N
+        self.rad_ratio = mat_builder.rad_ratio
+        self.l_odd_full = mat_builder.l_odd_full
+        self.l_min = mat_builder.l_min
+        self.eval_mat = mat_builder.eval_mat
+        self.df1_mat = mat_builder.df1_mat
+        self.df2_mat = mat_builder.df2_mat
+        self.l_even_full = mat_builder.l_even_full
+        self.r_grid = mat_builder.r_grid
+        self.m = mat_builder.m
+        self.l_max = mat_builder.l_max
+        if self.rad_ratio == 0:
+            self.eval_mat_even = mat_builder.eval_mat_even
+            self.eval_mat_odd = mat_builder.eval_mat_odd
+            self.df1_mat_even = mat_builder.df1_mat_even
+            self.df1_mat_odd = mat_builder.df1_mat_odd
+            self.df2_mat_even = mat_builder.df2_mat_even
+            self.df2_mat_odd = mat_builder.df2_mat_odd
+        self.c_l = mat_builder.c_l
+        self.r_grid = mat_builder.r_grid
+        self.r_end = mat_builder.r_end
+        self.soln = soln
     
-    def process_soln(self,odd_flag,soln):
+
+    def process_soln(self,odd_flag):
         
 
         tor_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
@@ -1306,30 +827,30 @@ class LN:
                 for l in self.l_odd_full:
                     
                     i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    tor_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_tor_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
                 for l in self.l_even_full:
                     
                     i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    pol_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_pol_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr2_pol_arr[i,:] = self.df2_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
             if odd_flag == 'pol':
                 
                 for l in self.l_even_full:
                     
                     i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    tor_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_tor_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
                 for l in self.l_odd_full:
                     
                     i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    pol_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_pol_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr2_pol_arr[i,:] = self.df2_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
         elif self.rad_ratio == 0.0:
             
@@ -1338,30 +859,30 @@ class LN:
                 for l in self.l_odd_full:
                     
                     i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_even @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_even @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    tor_arr[i,:] = self.eval_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_tor_arr[i,:] = self.df1_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
                 for l in self.l_even_full:
                     
                     i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_odd @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_odd @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_odd @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    pol_arr[i,:] = self.eval_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_pol_arr[i,:] = self.df1_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr2_pol_arr[i,:] = self.df2_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
             if odd_flag == 'pol':
                 
                 for l in self.l_even_full:
                     
                     i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_odd @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_odd @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    tor_arr[i,:] = self.eval_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_tor_arr[i,:] = self.df1_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
                     
                 for l in self.l_odd_full:
                     
                     i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_even @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_even @ soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_even @ soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    pol_arr[i,:] = self.eval_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr_pol_arr[i,:] = self.df1_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    dr2_pol_arr[i,:] = self.df2_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
             
         return tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr
         
@@ -1538,47 +1059,65 @@ class LN:
                 
             
         return arr
-    def gen_rhs(self,tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b):
+    
+
+
+class Rhs_builder:
+    
+    def __init__(self,N,rad_ratio,m,l_max):
         
-        rhs_tor_odd = np.zeros(self.n_l*(self.N+1),dtype=complex)
-        rhs_tor_even = np.zeros_like(rhs_tor_odd)
+        self.N = N
+        self.rad_ratio = rad_ratio
+        self.m = m
+        self.l_max = l_max
+        
+    
+        self.l_min,self.n_l,self.l_odd,self.l_even,self.l_even_full,self.l_odd_full = l_setup(self.m,self.l_max)
+        
+        
+    def gen_rhs(self,bc_list):
+        
+        self.gen_bc_arrs(bc_list)
+        
+        self.rhs_tor_odd = np.zeros(self.n_l*(self.N+1),dtype=complex)
+        self.rhs_tor_even = np.zeros_like(self.rhs_tor_odd)
         
     
         for l in self.l_odd_full:
             
             i = l - self.l_min
-            rhs_tor_odd[i*(self.N+1)] = tor_t[i]
-            rhs_tor_odd[(i+1)*(self.N+1)-1] = tor_b[i]
+            self.rhs_tor_odd[i*(self.N+1)] = self.tor_t[i]
+            self.rhs_tor_odd[(i+1)*(self.N+1)-1] = self.tor_b[i]
             
-            rhs_tor_even[i*(self.N+1)] = pol_t[i]
-            rhs_tor_even[i*(self.N+1)+1] = dr_pol_t[i]
-            rhs_tor_even[(i+1)*(self.N+1)-1] = pol_b[i]
-            rhs_tor_even[(i+1)*(self.N+1)-2] = dr_pol_b[i]
+            self.rhs_tor_even[i*(self.N+1)] = self.pol_t[i]
+            self.rhs_tor_even[i*(self.N+1)+1] = self.dr_pol_t[i]
+            self.rhs_tor_even[(i+1)*(self.N+1)-1] = self.pol_b[i]
+            self.rhs_tor_even[(i+1)*(self.N+1)-2] = self.dr_pol_b[i]
             
         for l in self.l_even_full:
             
             i = l - self.l_min
-            rhs_tor_even[i*(self.N+1)] = tor_t[i]
-            rhs_tor_even[(i+1)*(self.N+1)-1] = tor_b[i]
+            self.rhs_tor_even[i*(self.N+1)] = self.tor_t[i]
+            self.rhs_tor_even[(i+1)*(self.N+1)-1] = self.tor_b[i]
             
-            rhs_tor_odd[i*(self.N+1)] = pol_t[i]
-            rhs_tor_odd[i*(self.N+1)+1] = dr_pol_t[i]
-            rhs_tor_odd[(i+1)*(self.N+1)-1] = pol_b[i]
-            rhs_tor_odd[(i+1)*(self.N+1)-2] = dr_pol_b[i]
+            self.rhs_tor_odd[i*(self.N+1)] = self.pol_t[i]
+            self.rhs_tor_odd[i*(self.N+1)+1] = self.dr_pol_t[i]
+            self.rhs_tor_odd[(i+1)*(self.N+1)-1] = self.pol_b[i]
+            self.rhs_tor_odd[(i+1)*(self.N+1)-2] = self.dr_pol_b[i]
             
-            
-        return rhs_tor_odd,rhs_tor_even
+   
+        
 
     def gen_bc_arrs(self,bc_list):
         
         # bc_list = list of lists with each sublist formatted as: ['tor/pol/dr_pol','t/b','l',value]
         
-        pol_t = np.zeros(self.n_l*(self.N+1),dtype=complex)
-        pol_b = np.zeros_like(pol_t)
-        tor_t = np.zeros_like(pol_t)
-        tor_b = np.zeros_like(pol_t)
-        dr_pol_t = np.zeros_like(pol_t)
-        dr_pol_b = np.zeros_like(pol_t)
+        self.pol_t = np.zeros(self.n_l*(self.N+1),dtype=complex)
+        self.pol_b = np.zeros_like(self.pol_t)
+        self.tor_t = np.zeros_like(self.pol_t)
+        self.tor_b = np.zeros_like(self.pol_t)
+        self.dr_pol_t = np.zeros_like(self.pol_t)
+        self.dr_pol_b = np.zeros_like(self.pol_t)
         
         for bc in bc_list:
             
@@ -1592,11 +1131,11 @@ class LN:
                 
                 if tb == 't':
                     
-                    pol_t[i] = val
+                    self.pol_t[i] = val
                     
                 elif tb == 'b':
                     
-                    pol_b[i] = val
+                    self.pol_b[i] = val
                 
                 else:
                     
@@ -1606,11 +1145,11 @@ class LN:
                 
                 if tb == 't':
                     
-                    tor_t[i] = val
+                    self.tor_t[i] = val
                     
                 elif tb == 'b':
                     
-                    tor_b[i] = val
+                    self.tor_b[i] = val
                     
                 else:
                     
@@ -1620,11 +1159,11 @@ class LN:
                 
                 if tb == 't':
                     
-                    dr_pol_t[i] = val
+                    self.dr_pol_t[i] = val
                     
                 elif tb == 'b':
                     
-                    dr_pol_b[i] = val
+                    self.dr_pol_b[i] = val
                     
                 else:
                     
@@ -1634,355 +1173,10 @@ class LN:
                 
                 print('warning: invalid field value to gen_bc_arrs...')
                 
-        return tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b
+
    
 
-def Ekman_disp(freq,eps,E,eta):
-    
-    return 2*np.pi/15/np.sqrt(2) * np.abs(eps)**2 * E**(1/2)/(1-eta)**4 * ((2-freq)**(5/2)+(2+freq)**(5/2)-1/7*((2-freq)**(7/2)+(2+freq)**(7/2)))
 
 
-def Ekman_kin(freq,eps,E,eta):
-    
-    return np.pi/3/np.sqrt(2) * eps**2*E**(1/2)/(1-eta)**4 * ((2-freq)**(3/2)+(2+freq)**(3/2)-1/5*((2-freq)**(5/2)+(2+freq)**(5/2)))
-
-
-    '''
-N = 40
-l_max = 40
-rad_ratio = 0.0
-m = 0
-
-for_freq = 1
-ek = 1e-5
-bc_list = [['tor','t',1,2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
-
-
-t0 = time()
-LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
-
-
-PDE_mat = LN_case.gen_PDE_matrix('tor',for_freq,ek)
-
-LU = spla.splu(PDE_mat)
-
-tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
-
-rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
-soln = LU.solve(rhs_tor_odd)
-tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln('tor',soln)
-print(time()-t0)
-'''
-
-'''
-
-spat_mat = LN_case.gen_spatial_matrix_recomb('tor',ek)
-freq_mat = LN_case.gen_freq_matrix_recomb('tor',-1j)
-
-
-
-mat = spla.spsolve(freq_mat,spat_mat)
-
-w,v=spla.eigs(mat,k=6,sigma=np.sqrt(12/7)*1j,tol=0)
-
-print(w)
-soln = v[:,0]
-print(np.max(np.abs(soln)))
-tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln_recomb('tor',soln)
-
-'''
-
-
-'''
-w,v=spla.eigs(spat_mat,k=1,M=freq_mat,sigma=np.sqrt(12/7)*1j,which='SR')
-
-print(w)
-soln = v[:,0]
-print(np.max(np.abs(soln)))
-tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln_recomb('tor',soln)
-'''
-
-
-'''
-fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
-
-vec = np.zeros(N+1)
-vec[2] = 1
-ax.plot(LN_case.r_grid,LN_case.df1_mat_odd_pol @ vec)
-'''
-'''
-PDE_mat = LN_case.gen_PDE_matrix('tor',for_freq,ek)
-
-LU = spla.splu(PDE_mat)
-
-tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
-
-rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
-soln0 = LU.solve(rhs_tor_odd)
-
-
-freq_mat_1 = LN_case.gen_freq_matrix('tor',1.)
-print(time()-t0)
-
-n_freq = 100
-marg = 3*np.sqrt(ek)
-freq_arr = np.linspace(for_freq-marg,for_freq+marg,n_freq)
-en_arr = np.zeros_like(freq_arr)
-
-from tqdm import tqdm
-
-for k in tqdm(range(n_freq)):
-    freq_mat = (freq_arr[k]-for_freq)*freq_mat_1
-
-
-    soln = soln0
-    n_it = 100
-    res = np.inf
-    tol = 1e-4
-    i = 0
-    
-    while i < n_it and res >= tol:
-        
-        
-        soln = LU.solve(rhs_tor_odd-freq_mat @ soln)
-        res = np.linalg.norm((PDE_mat+freq_mat) @ soln-rhs_tor_odd)
-        
-        i += 1
-    
-        
-    
-    tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln('tor',soln)
-    
-
-    n_theta = N
-    theta_min = 0
-    theta_max = np.pi/2
-    theta_grid = 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
-    
-    q_phi = LN_case.calc_vel_field('longitudinal',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
-    q_r = LN_case.calc_vel_field('radial',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
-    q_theta = LN_case.calc_vel_field('colatitudinal',tor_arr,pol_arr,dr_pol_arr,theta_grid,LN_case.l_max)
-    
-    en = 1/4 * (np.abs(q_phi)**2+np.abs(q_r)**2+np.abs(q_theta)**2)
-    
-    tot_en = 4*np.pi * np.trapz(np.sin(theta_grid)*np.trapz(LN_case.r_grid[::-1,np.newaxis]**2*en,x=LN_case.r_grid[::-1],axis=0),x=theta_grid,axis=0)
-    
-    en_arr[k] = tot_en
-
-np.savetxt('freqs_it_7.txt',freq_arr)
-np.savetxt('ens_it_7.txt',en_arr)
-'''
-'''
-n_theta = LN_case.n_l
-theta_min = 0
-theta_max = np.pi
-theta_grid = 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
-
-sphrharm_eval_mat = np.zeros((LN_case.n_l,LN_case.n_l))
-sphrharm_df1_mat = np.zeros((LN_case.n_l,LN_case.n_l))
-
-
-
-for l in range(LN_case.l_min,LN_case.l_max+1):
-    
-    i = l - LN_case.l_min
-    sphrharm_eval_mat[:,i] = np.real(sphrharm(l,LN_case.m,theta_grid,0))
-
-sphrharm_df1_mat[:,-1] = (LN_case.l_max+1) * LN_case.c_l[-1] * np.real(sphrharm(LN_case.l_max-1,LN_case.m,theta_grid,0))
-for l in range(LN_case.l_min,LN_case.l_max):
-    
-    i = l - LN_case.l_min
-    sphrharm_df1_mat[:,i] = np.real(l * LN_case.c_l[i+1] * sphrharm(l+1,LN_case.m,theta_grid,0) - (l+1)*LN_case.c_l[i] * sphrharm(l-1,LN_case.m,theta_grid,0))
-
-sphrharm_df1_mat *= 1/np.sin(theta_grid)[:,np.newaxis]
-
-l_arr = np.linspace(LN_case.l_min,LN_case.l_max,LN_case.n_l)
-
-sphrharm_df2_mat = -sphrharm_df1_mat * np.cos(theta_grid[:,np.newaxis])/np.sin(theta_grid[:,np.newaxis])
-sphrharm_df2_mat +=  ((LN_case.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_arr+1)[np.newaxis,:]) * sphrharm_eval_mat
-
-
-q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
-q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-q_phi = (-np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-
-dr_q_r = np.tensordot(sphrharm_eval_mat,dr_pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2 - 2 *q_r/LN_case.r_grid[:,np.newaxis]
-dr_q_theta = (np.tensordot(sphrharm_df1_mat,dr2_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_theta/LN_case.r_grid[:,np.newaxis]
-dr_q_phi = (-np.tensordot(sphrharm_df1_mat,dr_tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr2_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_phi/LN_case.r_grid[:,np.newaxis]
-
-ptheta_q_r =  np.tensordot(sphrharm_df1_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
-ptheta_q_theta = (np.tensordot(sphrharm_df2_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-ptheta_q_phi = (-np.tensordot(sphrharm_df2_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-
-dtheta_q_r = (ptheta_q_r-q_theta)/LN_case.r_grid[:,np.newaxis]
-dphi_q_r = (1j*m*q_r/np.sin(theta_grid)[np.newaxis,:]-q_phi)/LN_case.r_grid[:,np.newaxis]
-
-dtheta_q_theta = (ptheta_q_theta+q_r)/LN_case.r_grid[:,np.newaxis]
-dphi_q_theta = (1j*LN_case.m*q_theta-np.cos(theta_grid)[np.newaxis,:]*q_phi)/LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
-
-dtheta_q_phi = ptheta_q_phi/LN_case.r_grid[:,np.newaxis]
-dphi_q_phi = (1j*LN_case.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.sin(theta_grid)[np.newaxis,:]*q_r) /LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
-
-'''
-
-
-
-'''
-q_phi_eig = np.loadtxt('q_phi_eig.txt',dtype=complex)
-q_theta_eig = np.loadtxt('q_theta_eig.txt',dtype=complex)
-q_r_eig = np.loadtxt('q_r_eig.txt',dtype=complex)
-r_grid_eig = np.loadtxt('r_grid_eig.txt')
-
-q_phi_eig_interp = np.zeros_like(q_phi)
-q_r_eig_interp = np.zeros_like(q_phi)
-q_theta_eig_interp = np.zeros_like(q_phi)
-
-for i in range(n_theta):
-    
-    q_phi_eig_interp[:,i] = np.interp(LN_case.r_grid,r_grid_eig,q_phi_eig[:,i])
-    q_theta_eig_interp[:,i] = np.interp(LN_case.r_grid,r_grid_eig,q_theta_eig[:,i])
-    q_r_eig_interp[:,i] = np.interp(LN_case.r_grid,r_grid_eig,q_r_eig[:,i])
-
-
-inn = q_phi * np.conjugate(q_phi_eig_interp) + q_theta * np.conjugate(q_theta_eig_interp) + q_r * np.conjugate(q_r_eig_interp)
-mag = np.abs(q_phi_eig_interp)**2 + np.abs(q_theta_eig_interp)**2 + np.abs(q_r_eig_interp)**2
-inn_int = 4*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(inn*LN_case.r_grid[:,np.newaxis]**2,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
-
-inn_int *= 1/(4*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(mag*LN_case.r_grid[:,np.newaxis]**2,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0))
-
-'''
-
-#np.savetxt('q_phi_eig.txt',q_phi)
-#np.savetxt('q_theta_eig.txt',q_theta)
-#np.savetxt('q_r_eig.txt',q_r)
-#np.savetxt('r_grid_eig.txt',LN_eig.r_grid)
-
-#dr_q_r = LN_case.calc_vel_grad('radial','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dtheta_q_r = LN_case.calc_vel_grad('radial','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dphi_q_r = LN_case.calc_vel_grad('radial','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-
-#dr_q_theta = LN_case.calc_vel_grad('colatitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dtheta_q_theta = LN_case.calc_vel_grad('colatitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dphi_q_theta = LN_case.calc_vel_grad('colatitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-
-#dr_q_phi = LN_case.calc_vel_grad('longitudinal','radial',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dtheta_q_phi = LN_case.calc_vel_grad('longitudinal','colatitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-#dphi_q_phi = LN_case.calc_vel_grad('longitudinal','longitudinal',tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,LN_case.l_max)
-
-'''
-stress_rr = 2*dr_q_r
-stress_rtheta = dr_q_theta + dtheta_q_r
-stress_rphi = dr_q_phi + dphi_q_r
-
-stress_thetatheta = 2*dtheta_q_theta
-stress_thetaphi = dphi_q_theta + dtheta_q_phi
-stress_phiphi = 2*dphi_q_phi
-
-disp = dr_q_r * np.conjugate(stress_rr)
-disp += dtheta_q_r * np.conjugate(stress_rtheta)
-disp += dphi_q_r * np.conjugate(stress_rphi)
-
-disp += dr_q_theta * np.conjugate(stress_rtheta)
-disp += dtheta_q_theta * np.conjugate(stress_thetatheta)
-disp += dphi_q_theta * np.conjugate(stress_thetaphi)
-
-disp += dr_q_phi * np.conjugate(stress_rphi)
-disp += dtheta_q_phi * np.conjugate(stress_thetaphi)
-disp += dphi_q_phi * np.conjugate(stress_phiphi)
-
-disp = 1/2 * np.real(disp)
-
-
-#np.savetxt('q_phi.txt',q_phi)
-#np.savetxt('q_theta.txt',q_theta)
-#np.savetxt('q_r.txt',q_r)
-#np.savetxt('disp.txt',disp)
-#np.savetxt('theta_grid.txt',theta_grid)
-#np.savetxt('r_grid.txt',LN_case.r_grid)
-
-tot_disp = ek*2*np.pi * np.trapz(np.sin(theta_grid) * np.trapz(LN_case.r_grid[::-1,np.newaxis]**2*disp[::-1,:],x=LN_case.r_grid[::-1],axis=0),x=theta_grid,axis=0)
-
-print(tot_disp)
-print(tot_disp/Ekman_disp(for_freq,1,ek,rad_ratio))
-#print(Ekman_disp(for_freq,1,ek,rad_ratio))
-
-
-
-tau_phi_r =  dphi_q_r + dr_q_phi 
-tau_theta_r = dtheta_q_r + dr_q_theta
-
-
-surf_power = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
-print(surf_power-tot_disp)
-print(surf_power)
-print(surf_power/Ekman_disp(for_freq,1,ek,rad_ratio))
-
-en = 1/4*(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)
-
-fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
-
-if rad_ratio > 0.0:
-    ss = np.array([[LN_case.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[LN_case.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-
-if rad_ratio == 0.0:
-    ss = np.array([[LN_case.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[LN_case.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-
-field = np.abs(p_field)
-
-
-vmin = np.min(field)
-vmax = np.max(field)
-
-
-
-if -vmin > vmax:
-    
-    vmax1 = -vmin
-    vmin1 = vmin
-    
-elif -vmin <= vmax:
-    
-    vmin1 = -vmax
-    vmax1 = vmax
-
-
-min_dec = int(np.ceil(np.log10(-vmin1)))
-max_dec = int(np.ceil(np.log10(vmax1)))
-
-thres = max(abs(vmin1),abs(vmax1))/15
-
-
-print(vmin,vmax)
-
-
-if vmin < 0:
-    norm = colors.SymLogNorm(vmin = vmin1, vmax = vmax1, linthresh=thres)
-    levels = -np.logspace(np.log10(thres),min_dec,100)[::-1]
-    levels = np.append(levels,np.linspace(-thres,thres,100)[1:])
-    levels = np.append(levels,np.logspace(np.log10(thres),max_dec,100)[1:])
-    cmap = 'seismic'
-elif vmin >= 0:
-    
-    
-    off=-7
-    top = 0
-    norm = colors.LogNorm(vmin = 10**(off)*vmax,vmax=10**(top)*vmax)
-    levels = np.logspace(max_dec+off,max_dec+top,100)
-
-
-    cmap = 'inferno'
-step = 1
-#norm = colors.TwoSlopeNorm(vcenter=0,vmin=vmin,vmax=vmax)
-p=ax.contourf(ss[::step,::step],zz[::step,::step],field[::step,::step],levels=levels,cmap=cmap,norm=norm)
-cbar = fig.colorbar(p)
-#cbar.set_ticks([vmin,0,vmax])
-#cbar.ax.set_yticklabels([round(vmin,5),0,round(vmax,5)])
-
-ax.set_aspect('equal')
-ax.axis('off')
-
-'''
 
 

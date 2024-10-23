@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from scipy.special import lpmv
 import scipy.sparse.linalg as spla
-from sphrflow_main import LN,sphrharm,Ekman_disp
+from sphrflow_main import Matrix_builder_forced,Rhs_builder,Soln_forced,sphrharm
 import tracemalloc
 from math import factorial
 
@@ -137,96 +137,100 @@ def Ekman_disp(freq,eps,E,eta):
     
     return 2*np.pi/15/np.sqrt(2) * np.abs(eps)**2 * E**(1/2)/(1-eta)**4 * ((2-freq)**(5/2)+(2+freq)**(5/2)-1/7*((2-freq)**(7/2)+(2+freq)**(7/2)))
 
-
+ 
+def Ekman_kin(freq,eps,E,eta):
+    
+    return np.pi/3/np.sqrt(2) * eps**2*E**(1/2)/(1-eta)**4 * ((2-freq)**(3/2)+(2+freq)**(3/2)-1/5*((2-freq)**(5/2)+(2+freq)**(5/2)))
+ 
+ 
 
 N =100
 l_max =100
 rad_ratio = 0.5
 m = 0
 
-tracemalloc.start()
+t0 = time()
 
 
-
-ek = 10**-5.4
+ek = 10**-4
 
 Re = 300
 eps = Re*np.sqrt(ek)*(1-rad_ratio)
 
 
 for_freq = 1.
-#for_freq = 1.
-#bc_list = [['pol','t',2,4/6*np.sqrt(2*np.pi/15)/(1-rad_ratio)**2]]
 bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
 
-t0 = time()
-LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
+matrix_builder = Matrix_builder_forced(N,rad_ratio,m,l_max)
+rhs_builder = Rhs_builder(N,rad_ratio,m,l_max)
 
-
-PDE_mat = LN_case.gen_PDE_matrix('tor',for_freq,ek)
+PDE_mat = matrix_builder.gen_PDE_matrix('tor',for_freq,ek)
 
 LU = spla.splu(PDE_mat)
 
-tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
+rhs_builder.gen_rhs(bc_list)
+soln = LU.solve(rhs_builder.rhs_tor_odd)
 
-rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
-soln = LU.solve(rhs_tor_odd)
-tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = LN_case.process_soln('tor',soln)
+
+PDE_soln = Soln_forced(soln,matrix_builder)
+
+
+tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = PDE_soln.process_soln('tor')
 
 sol_time = time()-t0
 print(sol_time)
 
-n_theta = 4*LN_case.n_l
+n_theta = 4*PDE_soln.n_l
 theta_min = 0
 theta_max = np.pi
 theta_grid = 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
 
-sphrharm_eval_mat = np.zeros((n_theta,LN_case.n_l))
-sphrharm_df1_mat = np.zeros((n_theta,LN_case.n_l))
+sphrharm_eval_mat = np.zeros((n_theta,PDE_soln.n_l))
+sphrharm_df1_mat = np.zeros((n_theta,PDE_soln.n_l))
 
 
-s_max = LN_case.l_max+1
+s_max = PDE_soln.l_max+1
 #s_max = 8
-for l in range(LN_case.l_min,s_max):
+for l in range(PDE_soln.l_min,s_max):
     
-    i = l - LN_case.l_min
-    sphrharm_eval_mat[:,i] = np.real(sphrharm(l,LN_case.m,theta_grid,0))
+    i = l - PDE_soln.l_min
+    sphrharm_eval_mat[:,i] = np.real(sphrharm(l,PDE_soln.m,theta_grid,0))
 
-sphrharm_df1_mat[:,-1] = (LN_case.l_max+1) * LN_case.c_l[-1] * np.real(sphrharm(LN_case.l_max-1,LN_case.m,theta_grid,0))
-for l in range(LN_case.l_min,s_max):
+sphrharm_df1_mat[:,-1] = (PDE_soln.l_max+1) * PDE_soln.c_l[-1] * np.real(sphrharm(PDE_soln.l_max-1,PDE_soln.m,theta_grid,0))
+for l in range(PDE_soln.l_min,s_max):
     
-    i = l - LN_case.l_min
-    sphrharm_df1_mat[:,i] = np.real(l * LN_case.c_l[i+1] * sphrharm(l+1,LN_case.m,theta_grid,0) - (l+1)*LN_case.c_l[i] * sphrharm(l-1,LN_case.m,theta_grid,0))
+    i = l - PDE_soln.l_min
+    sphrharm_df1_mat[:,i] = np.real(l * PDE_soln.c_l[i+1] * sphrharm(l+1,PDE_soln.m,theta_grid,0) - (l+1)*PDE_soln.c_l[i] * sphrharm(l-1,PDE_soln.m,theta_grid,0))
 
 sphrharm_df1_mat *= 1/np.sin(theta_grid)[:,np.newaxis]
 
-l_arr = np.linspace(LN_case.l_min,LN_case.l_max,LN_case.n_l)
+l_arr = np.linspace(PDE_soln.l_min,PDE_soln.l_max,PDE_soln.n_l)
 
 sphrharm_df2_mat = -sphrharm_df1_mat * np.cos(theta_grid[:,np.newaxis])/np.sin(theta_grid[:,np.newaxis])
-sphrharm_df2_mat +=  ((LN_case.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_arr+1)[np.newaxis,:]) * sphrharm_eval_mat
+sphrharm_df2_mat +=  ((PDE_soln.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_arr+1)[np.newaxis,:]) * sphrharm_eval_mat
 
 
-q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
-q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-q_phi = (-np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.r_grid[:,np.newaxis]**2
+q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis]
+q_phi = (-np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis]
 
-dr_q_r = np.tensordot(sphrharm_eval_mat,dr_pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2 - 2 *q_r/LN_case.r_grid[:,np.newaxis]
-dr_q_theta = (np.tensordot(sphrharm_df1_mat,dr2_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_theta/LN_case.r_grid[:,np.newaxis]
-dr_q_phi = (-np.tensordot(sphrharm_df1_mat,dr_tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr2_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis] - q_phi/LN_case.r_grid[:,np.newaxis]
+dr_q_r = np.tensordot(sphrharm_eval_mat,dr_pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.r_grid[:,np.newaxis]**2 - 2 *q_r/PDE_soln.r_grid[:,np.newaxis]
+dr_q_theta = (np.tensordot(sphrharm_df1_mat,dr2_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis] - q_theta/PDE_soln.r_grid[:,np.newaxis]
+dr_q_phi = (-np.tensordot(sphrharm_df1_mat,dr_tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr2_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis] - q_phi/PDE_soln.r_grid[:,np.newaxis]
 
-ptheta_q_r =  np.tensordot(sphrharm_df1_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/LN_case.r_grid[:,np.newaxis]**2
-ptheta_q_theta = (np.tensordot(sphrharm_df2_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
-ptheta_q_phi = (-np.tensordot(sphrharm_df2_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/LN_case.r_grid[:,np.newaxis]
+ptheta_q_r =  np.tensordot(sphrharm_df1_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.r_grid[:,np.newaxis]**2
+ptheta_q_theta = (np.tensordot(sphrharm_df2_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis]
+ptheta_q_phi = (-np.tensordot(sphrharm_df2_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/PDE_soln.r_grid[:,np.newaxis]
 
-dtheta_q_r = (ptheta_q_r-q_theta)/LN_case.r_grid[:,np.newaxis]
-dphi_q_r = (1j*m*q_r/np.sin(theta_grid)[np.newaxis,:]-q_phi)/LN_case.r_grid[:,np.newaxis]
+dtheta_q_r = (ptheta_q_r-q_theta)/PDE_soln.r_grid[:,np.newaxis]
+dphi_q_r = (1j*m*q_r/np.sin(theta_grid)[np.newaxis,:]-q_phi)/PDE_soln.r_grid[:,np.newaxis]
 
-dtheta_q_theta = (ptheta_q_theta+q_r)/LN_case.r_grid[:,np.newaxis]
-dphi_q_theta = (1j*LN_case.m*q_theta-np.cos(theta_grid)[np.newaxis,:]*q_phi)/LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
+dtheta_q_theta = (ptheta_q_theta+q_r)/PDE_soln.r_grid[:,np.newaxis]
+dphi_q_theta = (1j*PDE_soln.m*q_theta-np.cos(theta_grid)[np.newaxis,:]*q_phi)/PDE_soln.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
 
-dtheta_q_phi = ptheta_q_phi/LN_case.r_grid[:,np.newaxis]
-dphi_q_phi = (1j*LN_case.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.sin(theta_grid)[np.newaxis,:]*q_r) /LN_case.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
+dtheta_q_phi = ptheta_q_phi/PDE_soln.r_grid[:,np.newaxis]
+dphi_q_phi = (1j*PDE_soln.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.sin(theta_grid)[np.newaxis,:]*q_r) /PDE_soln.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
 
 
 
@@ -234,7 +238,7 @@ dphi_q_phi = (1j*LN_case.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.s
 
 en = 1/4*(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)
 
-tot_en = -2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(LN_case.r_grid[:,np.newaxis]**2*en,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
+tot_en = -2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(PDE_soln.r_grid[:,np.newaxis]**2*en,x=PDE_soln.r_grid,axis=0),x=theta_grid,axis=0)
 print(tot_en*47**2)
 
 
@@ -261,7 +265,7 @@ disp += dphi_q_phi * np.conjugate(stress_phiphi)
 disp = 1/2 * np.real(disp)
 
 
-tot_disp = ek*2*np.pi * np.trapz(np.sin(theta_grid) * np.trapz(LN_case.r_grid[::-1,np.newaxis]**2*disp[::-1,:],x=LN_case.r_grid[::-1],axis=0),x=theta_grid,axis=0)
+tot_disp = ek*2*np.pi * np.trapz(np.sin(theta_grid) * np.trapz(PDE_soln.r_grid[::-1,np.newaxis]**2*disp[::-1,:],x=PDE_soln.r_grid[::-1],axis=0),x=theta_grid,axis=0)
 
 
 
@@ -270,10 +274,10 @@ tau_phi_r =  dphi_q_r + dr_q_phi
 tau_theta_r = dtheta_q_r + dr_q_theta
 
 
-surf_power = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
+surf_power = 2*np.pi * ek* PDE_soln.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=theta_grid,axis=0)
 
-surf_2 = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*tau_phi_r[0,:]+q_theta[0,:]*tau_theta_r[0,:]),x=theta_grid,axis=0)
-surf_3 = 2*np.pi * ek* LN_case.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.imag(q_phi[0,:]*tau_phi_r[0,:]+q_theta[0,:]*tau_theta_r[0,:]),x=theta_grid,axis=0)
+surf_2 = 2*np.pi * ek* PDE_soln.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.real(q_phi[0,:]*tau_phi_r[0,:]+q_theta[0,:]*tau_theta_r[0,:]),x=theta_grid,axis=0)
+surf_3 = 2*np.pi * ek* PDE_soln.r_end**2* np.trapz(np.sin(theta_grid) * 0.5*np.imag(q_phi[0,:]*tau_phi_r[0,:]+q_theta[0,:]*tau_theta_r[0,:]),x=theta_grid,axis=0)
 
 
 
@@ -281,8 +285,8 @@ en_a = 1/4*(np.abs(q_r)**2+np.abs(q_phi)**2+np.abs(q_theta)**2)
 en_b = 1/4 * (q_r**2+q_phi**2+q_theta**2)
 
 
-kin_a = -2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(LN_case.r_grid[:,np.newaxis]**2*en_a,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
-kin_b =-2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(LN_case.r_grid[:,np.newaxis]**2*en_b,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
+kin_a = -2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(PDE_soln.r_grid[:,np.newaxis]**2*en_a,x=PDE_soln.r_grid,axis=0),x=theta_grid,axis=0)
+kin_b =-2*np.pi*np.trapz(np.sin(theta_grid)*np.trapz(PDE_soln.r_grid[:,np.newaxis]**2*en_b,x=PDE_soln.r_grid,axis=0),x=theta_grid,axis=0)
 print(kin_a,kin_b)
 print()
 print(surf_power,surf_2,surf_3)
@@ -303,12 +307,12 @@ mean_adv_phi = 1/2 * np.real(q_r*np.conjugate(dr_q_phi)+q_theta*np.conjugate(dth
 fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
 
 if rad_ratio > 0.0:
-    ss = np.array([[LN_case.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[LN_case.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+    ss = np.array([[PDE_soln.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+    zz = np.array([[PDE_soln.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
 
 if rad_ratio == 0.0:
-    ss = np.array([[LN_case.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[LN_case.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+    ss = np.array([[PDE_soln.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+    zz = np.array([[PDE_soln.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
 
 
 
@@ -316,16 +320,16 @@ if rad_ratio == 0.0:
 freq = calc_freq(2,1,1)
 
 print('freq',freq)
-eig_r = calc_q_r(2,1,freq,LN_case.r_grid*(1-rad_ratio),theta_grid)
-eig_theta = calc_q_theta(2,1,freq,LN_case.r_grid*(1-rad_ratio),theta_grid)
-eig_phi = calc_q_phi(2,1,freq,LN_case.r_grid*(1-rad_ratio),theta_grid)
+eig_r = calc_q_r(2,1,freq,PDE_soln.r_grid*(1-rad_ratio),theta_grid)
+eig_theta = calc_q_theta(2,1,freq,PDE_soln.r_grid*(1-rad_ratio),theta_grid)
+eig_phi = calc_q_phi(2,1,freq,PDE_soln.r_grid*(1-rad_ratio),theta_grid)
 
 
 norm = calc_norm(2,1,freq)/(1-rad_ratio)**3
 
 inn_field = q_r * np.conjugate(eig_r) + q_theta * np.conjugate(eig_theta) +q_phi * np.conjugate(eig_phi)
 
-inn = -2*np.pi/norm * np.trapz(np.sin(theta_grid)*np.trapz(inn_field*LN_case.r_grid[:,np.newaxis]**2,x=LN_case.r_grid,axis=0),x=theta_grid,axis=0)
+inn = -2*np.pi/norm * np.trapz(np.sin(theta_grid)*np.trapz(inn_field*PDE_soln.r_grid[:,np.newaxis]**2,x=PDE_soln.r_grid,axis=0),x=theta_grid,axis=0)
 
 print(np.abs(inn))
 
@@ -350,10 +354,10 @@ for i in range(n_theta):
     r_c = np.sin(np.pi/6)/np.sin(np.pi/6+theta_grid[i])
     
 
-    disp_vals[i] = np.interp(r_c,LN_case.r_grid[::-1],ek*disp[::-1,i])
+    disp_vals[i] = np.interp(r_c,PDE_soln.r_grid[::-1],ek*disp[::-1,i])
     s_c[i] = r_c*np.sin(theta_grid[i])
     z_c[i] = r_c*np.cos(theta_grid[i])
-    vel_vals[i] = np.interp(r_c,LN_case.r_grid[::-1],np.sqrt(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)[::-1,i])
+    vel_vals[i] = np.interp(r_c,PDE_soln.r_grid[::-1],np.sqrt(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)[::-1,i])
     
     
 #np.savetxt('C:/Users/ianma/Desktop/sphrflow/revision_files/near_polar/ek_6_disp.txt',disp_vals)
@@ -391,7 +395,7 @@ for i in range(max_idc):
     rad_grid = np.linspace(l,L,rad_res)
     
     rads_arr[i,:] = rad_grid
-    val_arr[i,:] = np.interp(rad_grid,LN_case.r_grid[::-1],disp[::-1,i])
+    val_arr[i,:] = np.interp(rad_grid,PDE_soln.r_grid[::-1],disp[::-1,i])
     
     
 #np.savetxt('C:/Users/ianma/Desktop/sphrflow/revision_files/rads_arr.txt',rads_arr)
@@ -454,7 +458,7 @@ ax.axis('off')
 
 fig,ax=plt.subplots(1,1,figsize=(5,5),dpi=200)
 
-ax.plot(LN_case.r_grid,np.imag(q_theta[:,len(theta_grid)//2]))
+ax.plot(PDE_soln.r_grid,np.imag(q_theta[:,len(theta_grid)//2]))
 
 '''
 fig,ax = plt.subplots(1,1,figsize=(8,5),dpi=200)
