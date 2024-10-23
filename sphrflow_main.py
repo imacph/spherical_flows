@@ -83,6 +83,65 @@ def l_setup(m,l_max):
         
     return l_min,n_l,l_odd,l_even,l_even_full,l_odd_full
 
+
+class Iterator:
+    
+    def __init__(self,N,rad_ratio,m,l_max):
+        
+        self.matrix_builder = Matrix_builder_forced(N,rad_ratio,m,l_max)
+        self.rhs_builder = Rhs_builder(N,rad_ratio,m,l_max)
+
+    def iterate(self,freq_array,ek,bc_list,odd_flag,tol=1e-4,max_inner_it=30):
+        
+        self.rhs_builder.gen_rhs(bc_list)
+        
+        base_freq_mat = self.matrix_builder.gen_freq_matrix(odd_flag,1.)
+        self.rhs_builder.gen_rhs(bc_list,odd_flag)
+        
+        
+        n_freq = len(freq_array)
+        k = 0 
+        while k <= n_freq-1:
+            
+            freq0 = freq_array[k]
+            PDE_mat = self.matrix_builder.gen_PDE_matrix(odd_flag,freq_array[k],ek)
+            
+            LU = spla.splu(PDE_mat)
+            soln0 = LU.solve(self.rhs_builder.rhs)
+            
+            
+            inner_iterating = True
+            n_suc_it = 0
+            while inner_iterating:
+                
+                inner_k = 0
+                res = np.inf
+                soln = soln0
+                while inner_k < max_inner_it-1 and res > tol:
+                    
+                    freq = freq_array[k]
+                    
+                    freq_mat = (freq-freq0)*base_freq_mat
+                    
+                    soln = LU.solve(self.rhs_builder.rhs-freq_mat @ soln)
+                    res = np.linalg.norm((PDE_mat+freq_mat) @ soln-self.rhs_builder.rhs)
+                    
+                    inner_k += 1
+            
+                if inner_k == max_inner_it-1 and res > tol:
+                    
+                    inner_iterating = False
+                    
+                else:
+                    
+                    n_suc_it += 1
+                    
+            k += 1 + n_suc_it
+                    
+                    
+            
+
+        
         
 class Matrix_builder_forced:
     
@@ -787,102 +846,81 @@ class Soln_forced:
     
     def __init__(self,soln,mat_builder):
         
-        self.n_l = mat_builder.n_l
-        self.N = mat_builder.N
-        self.rad_ratio = mat_builder.rad_ratio
-        self.l_odd_full = mat_builder.l_odd_full
-        self.l_min = mat_builder.l_min
-        self.eval_mat = mat_builder.eval_mat
-        self.df1_mat = mat_builder.df1_mat
-        self.df2_mat = mat_builder.df2_mat
-        self.l_even_full = mat_builder.l_even_full
-        self.r_grid = mat_builder.r_grid
-        self.m = mat_builder.m
-        self.l_max = mat_builder.l_max
-        if self.rad_ratio == 0:
-            self.eval_mat_even = mat_builder.eval_mat_even
-            self.eval_mat_odd = mat_builder.eval_mat_odd
-            self.df1_mat_even = mat_builder.df1_mat_even
-            self.df1_mat_odd = mat_builder.df1_mat_odd
-            self.df2_mat_even = mat_builder.df2_mat_even
-            self.df2_mat_odd = mat_builder.df2_mat_odd
-        self.c_l = mat_builder.c_l
-        self.r_grid = mat_builder.r_grid
-        self.r_end = mat_builder.r_end
+        self.mb = mat_builder
         self.soln = soln
     
 
     def process_soln(self,odd_flag):
         
 
-        tor_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
+        tor_arr = np.zeros((self.mb.n_l,self.mb.N+1),dtype=complex)
         dr_tor_arr = np.zeros_like(tor_arr)
-        pol_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
-        dr_pol_arr = np.zeros((self.n_l,self.N+1),dtype=complex)
+        pol_arr = np.zeros((self.mb.n_l,self.mb.N+1),dtype=complex)
+        dr_pol_arr = np.zeros((self.mb.n_l,self.mb.N+1),dtype=complex)
         dr2_pol_arr = np.zeros_like(tor_arr)
         
-        if self.rad_ratio > 0.0:
+        if self.mb.rad_ratio > 0.0:
             if odd_flag == 'tor':
                 
-                for l in self.l_odd_full:
+                for l in self.mb.l_odd_full:
                     
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    tor_arr[i,:] = self.mb.eval_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_tor_arr[i,:] = self.mb.df1_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
-                for l in self.l_even_full:
+                for l in self.mb.l_even_full:
                     
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    pol_arr[i,:] = self.mb.eval_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_pol_arr[i,:] = self.mb.df1_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr2_pol_arr[i,:] = self.mb.df2_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
             if odd_flag == 'pol':
                 
-                for l in self.l_even_full:
+                for l in self.mb.l_even_full:
                     
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    tor_arr[i,:] = self.mb.eval_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_tor_arr[i,:] = self.mb.df1_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
-                for l in self.l_odd_full:
+                for l in self.mb.l_odd_full:
                     
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    pol_arr[i,:] = self.mb.eval_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_pol_arr[i,:] = self.mb.df1_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr2_pol_arr[i,:] = self.mb.df2_mat @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
-        elif self.rad_ratio == 0.0:
+        elif self.mb.rad_ratio == 0.0:
             
             if odd_flag == 'tor':
                 
-                for l in self.l_odd_full:
+                for l in self.mb.l_odd_full:
                     
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    tor_arr[i,:] = self.mb.eval_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_tor_arr[i,:] = self.mb.df1_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
-                for l in self.l_even_full:
+                for l in self.mb.l_even_full:
                     
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    pol_arr[i,:] = self.mb.eval_mat_odd @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_pol_arr[i,:] = self.mb.df1_mat_odd @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr2_pol_arr[i,:] = self.mb.df2_mat_odd @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
             if odd_flag == 'pol':
                 
-                for l in self.l_even_full:
+                for l in self.mb.l_even_full:
                     
-                    i = l-self.l_min
-                    tor_arr[i,:] = self.eval_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_tor_arr[i,:] = self.df1_mat_odd @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    tor_arr[i,:] = self.mb.eval_mat_odd @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_tor_arr[i,:] = self.mb.df1_mat_odd @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     
-                for l in self.l_odd_full:
+                for l in self.mb.l_odd_full:
                     
-                    i = l-self.l_min
-                    pol_arr[i,:] = self.eval_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr_pol_arr[i,:] = self.df1_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
-                    dr2_pol_arr[i,:] = self.df2_mat_even @ self.soln[i*(self.N+1):(i+1)*(self.N+1)]
+                    i = l-self.mb.l_min
+                    pol_arr[i,:] = self.mb.eval_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr_pol_arr[i,:] = self.mb.df1_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
+                    dr2_pol_arr[i,:] = self.mb.df2_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
             
         return tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr
         
@@ -1075,7 +1113,7 @@ class Rhs_builder:
         self.l_min,self.n_l,self.l_odd,self.l_even,self.l_even_full,self.l_odd_full = l_setup(self.m,self.l_max)
         
         
-    def gen_rhs(self,bc_list):
+    def gen_rhs(self,bc_list,odd_flag):
         
         self.gen_bc_arrs(bc_list)
         
@@ -1104,8 +1142,14 @@ class Rhs_builder:
             self.rhs_tor_odd[i*(self.N+1)+1] = self.dr_pol_t[i]
             self.rhs_tor_odd[(i+1)*(self.N+1)-1] = self.pol_b[i]
             self.rhs_tor_odd[(i+1)*(self.N+1)-2] = self.dr_pol_b[i]
+    
+        if odd_flag == 'tor':
             
-   
+            self.rhs = self.rhs_tor_odd
+        
+        elif odd_flag == 'pol':
+        
+            self.rhs = self.rhs_tor_even
         
 
     def gen_bc_arrs(self,bc_list):
