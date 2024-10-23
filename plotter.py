@@ -147,11 +147,17 @@ m = 0
 tracemalloc.start()
 
 
-ek = 10**-4.4
-for_freq = 1
+
+ek = 10**-5.4
+
+Re = 300
+eps = Re*np.sqrt(ek)*(1-rad_ratio)
+
+
+for_freq = 1.
 #for_freq = 1.
 #bc_list = [['pol','t',2,4/6*np.sqrt(2*np.pi/15)/(1-rad_ratio)**2]]
-bc_list = [['tor','t',1,2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
+bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
 
 t0 = time()
@@ -290,6 +296,10 @@ mean_adv_theta = 1/2 * np.real(q_r*np.conjugate(dr_q_theta)+q_theta*np.conjugate
 mean_adv_phi = 1/2 * np.real(q_r*np.conjugate(dr_q_phi)+q_theta*np.conjugate(dtheta_q_phi)+q_phi*np.conjugate(dphi_q_phi))
 
 
+
+
+
+
 fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=200)
 
 if rad_ratio > 0.0:
@@ -323,8 +333,7 @@ print(np.abs(inn))
 #field = np.real(inn*eig_phi)
 #field = np.real(q_phi*np.exp(1j*for_freq*(0*np.pi/2/for_freq+np.pi/2/for_freq)))
 
-field = np.imag(q_r)
-field = -mean_adv_phi
+field = disp
 
 vmin = np.min(field)
 vmax = np.max(field)
@@ -402,7 +411,7 @@ elif -vmin <= vmax:
 min_dec = int(np.ceil(np.log10(-vmin1)))
 max_dec = int(np.ceil(np.log10(vmax1)))
 
-thres = max(abs(vmin1),abs(vmax1))/5
+thres = max(abs(vmin1),abs(vmax1))/15
 
 
 print(vmin,vmax)
@@ -417,8 +426,8 @@ if vmin < 0:
 elif vmin >= 0:
     
     
-    off=-14
-    top = -5
+    off=-9
+    top = -2
     norm = colors.LogNorm(vmin = 10**(off)*vmax,vmax=10**(top)*vmax)
     levels = np.logspace(max_dec+off,max_dec+top,100)
 
@@ -438,11 +447,14 @@ cbar.set_ticks([1e-6,1e-4,1e-2,1])
 
 ax.set_aspect('equal')
 ax.axis('off')
+
+
+
 #ax.plot(1.9755282,0,ms=1,marker='o')
 
-#fig,ax=plt.subplots(1,1,figsize=(5,5),dpi=200)
+fig,ax=plt.subplots(1,1,figsize=(5,5),dpi=200)
 
-#ax.plot(theta_grid,vals)
+ax.plot(LN_case.r_grid,np.imag(q_theta[:,len(theta_grid)//2]))
 
 '''
 fig,ax = plt.subplots(1,1,figsize=(8,5),dpi=200)

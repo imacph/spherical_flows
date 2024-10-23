@@ -51,7 +51,7 @@ sphrharm_df2_mat +=  ((LN_case.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_a
 
 
 
-n_it =3000
+n_it =100
 step = 4*(ek)**(0.23)/200
 step = 3.33333333e-4
 disp_arr = np.zeros(n_it)

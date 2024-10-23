@@ -33,7 +33,7 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
             if res < tol:
                 freqs.append(freq)
                 steps.append(k)
-                np.savetxt('revision_files/ek_65_pi6/soln_{:d}.txt'.format(k),soln)
+                np.savetxt('revision_files/ek_8_full_spec/soln_{:d}.txt'.format(k),soln)
                 
                 break
         
@@ -47,15 +47,15 @@ def iterate_soln(PDE_mat,freq_mat_1,n_it,tol,step,freq0,soln0,rhs,step0=0):
     
 
 
-N =160
-l_max =120
+N =240
+l_max =200
 rad_ratio = 0.
 m = 0
 
 #N= 100, l_max = 120, E = 1e-5
-ek = 10**(-6.5)
-bc_list = [['pol','t',2,2/3*np.sqrt(2*np.pi/15)/(1-rad_ratio)**2]]
-bc_list = [['tor','t',1,np.sqrt(ek)*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
+ek = 10**(-8)
+#bc_list = [['pol','t',2,2/3*np.sqrt(2*np.pi/15)/(1-rad_ratio)**2]]
+bc_list = [['tor','t',1,2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
 
 LN_case = LN(N,rad_ratio,m,l_max,eigen_flag=0)
@@ -64,16 +64,15 @@ tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b = LN_case.gen_bc_arrs(bc_list)
 rhs_tor_odd,rhs_tor_even = LN_case.gen_rhs(tor_t,tor_b,pol_t,pol_b,dr_pol_t,dr_pol_b)
 
 
-max_outer = 200
-k =196
-freq0 = 2*np.sin(np.pi/6)-2*ek**(0.23)
+max_outer = 20000
+k =0
+freq0 = 0
 
 #freq0 = 0
 n_it = 30
 tol = 1e-4
-step =4*ek**(0.23)/max_outer
-
-freq0+=k*step
+step = 1e-4
+#freq0+=k*step
 #step = 1e-4
 freq_mat_1 = LN_case.gen_freq_matrix('tor',1.)
 while k < max_outer:

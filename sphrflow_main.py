@@ -432,7 +432,7 @@ class LN:
                 upper_mat[2:-2,:] += -upper_fac * self.df1_mat[2:-2,:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat[2:-2,:] += lower_fac * l*(self.orr_mat*self.eval_mat)[2:-2,:]
                 lower_mat[2:-2,:] += -lower_fac * self.df1_mat[2:-2,:]
@@ -491,7 +491,7 @@ class LN:
                 upper_mat += -upper_fac * self.df1_mat_even_tor
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_even_tor)
                 lower_mat += -lower_fac * self.df1_mat_even_tor
@@ -512,7 +512,7 @@ class LN:
                 upper_mat += -upper_fac * self.df1_mat_odd_tor
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat += lower_fac * l*(self.orr_mat*self.eval_mat_odd_tor)
                 lower_mat += -lower_fac * self.df1_mat_odd_tor
@@ -627,7 +627,7 @@ class LN:
                 upper_mat[2:-2,:] += -upper_fac * self.df1_mat[2:-2,:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat[2:-2,:] += lower_fac * l*(self.orr_mat*self.eval_mat)[2:-2,:]
                 lower_mat[2:-2,:] += -lower_fac * self.df1_mat[2:-2,:]
@@ -692,7 +692,7 @@ class LN:
                 upper_mat[2:] += -upper_fac * self.df1_mat_even[2:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_even)[2:]
                 lower_mat[2:] += -lower_fac * self.df1_mat_even[2:]
@@ -716,7 +716,7 @@ class LN:
                 upper_mat[2:] += -upper_fac * self.df1_mat_odd[2:]
                 
             
-                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+m)*(l-m)/(2*l-1)/(2*l+1))
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
                 
                 lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_odd)[2:]
                 lower_mat[2:] += -lower_fac * self.df1_mat_odd[2:]
@@ -740,8 +740,8 @@ class LN:
                 diag_mat[1:-1,:] += -lp * ek * self.df2_mat[1:-1,:]
                 
                 diag_mat[0,:] = self.eval_mat[0,:]
-                #diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
+                diag_mat[-1,:] = self.eval_mat[-1,:]
+                #diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
                 
                 upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
                 
@@ -767,8 +767,8 @@ class LN:
                 diag_mat[0,:] = self.eval_mat[0,:]
                 diag_mat[-1,:] = self.eval_mat[-1,:]
                 diag_mat[1,:] = self.df1_mat[0,:]
-                #diag_mat[-2,:] = self.df1_mat[-1,:]
-                diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+                diag_mat[-2,:] = self.df1_mat[-1,:]
+                #diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
                 
                 
                 upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
@@ -1491,7 +1491,7 @@ class LN:
                     i = l - self.l_min
                     
                     arr += self.m * (dr_pol_arr[i,:,np.newaxis]*1j * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])-self.m*tor_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -np.cos(theta_grid[np.newaxis,:])*(dr_pol_arr[i,:,np.newaxis]*1j*m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-tor_arr[i,:,np.newaxis] *(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]))
+                    arr += -np.cos(theta_grid[np.newaxis,:])*(dr_pol_arr[i,:,np.newaxis]*1j*self.m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-tor_arr[i,:,np.newaxis] *(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]))
                 
                 arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
             
