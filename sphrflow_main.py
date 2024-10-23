@@ -89,7 +89,7 @@ class Iterator:
     def __init__(self,N,rad_ratio,m,l_max):
         
         self.matrix_builder = Matrix_builder_forced(N,rad_ratio,m,l_max)
-        self.rhs_builder = Rhs_builder(N,rad_ratio,m,l_max)
+        self.rhs_builder = Boundary_rhs_builder(N,rad_ratio,m,l_max)
 
     def iterate(self,freq_array,ek,bc_list,odd_flag,tol=1e-4,max_inner_it=30):
         
@@ -844,11 +844,13 @@ class Matrix_builder_forced:
         
 class Soln_forced:
     
-    def __init__(self,soln,mat_builder):
+    def __init__(self,soln,mat_builder,ek,for_freq):
         
         self.mb = mat_builder
         self.soln = soln
-    
+        self.ek = ek
+        self.for_freq = for_freq
+        
 
     def process_soln(self,odd_flag):
         
@@ -922,185 +924,108 @@ class Soln_forced:
                     dr_pol_arr[i,:] = self.mb.df1_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
                     dr2_pol_arr[i,:] = self.mb.df2_mat_even @ self.soln[i*(self.mb.N+1):(i+1)*(self.mb.N+1)]
             
-        return tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr
+        self.tor_arr,self.dr_tor_arr,self.pol_arr,self.dr_pol_arr,self.dr2_pol_arr= tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr
         
 
 
-    def calc_vel_field(self,field,tor_arr,pol_arr,dr_pol_arr,theta_grid,l_max):
+
+
+    def calc_vel_field(self,spatial_rep):
         
-        n_theta = len(theta_grid)
-        vel_arr = np.zeros((self.N+1,n_theta),dtype=complex)
-        orr = 1/self.r_grid
-        orr_sqr = orr * orr
+
+        spatial_rep.q_r = np.tensordot(spatial_rep.sphrharm_eval_mat,self.pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2
+        spatial_rep.q_theta = (np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.q_phi = (-np.tensordot(spatial_rep.sphrharm_df1_mat,self.tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
+
         
-        s_theta = np.sin(theta_grid)
-        oos_theta = 1/s_theta
-        
-        if field == 'radial':
-            
-            for l in range(self.l_min,l_max+1):
-                
-                i = l - self.l_min
-                
-                vel_arr += l*(l+1) * orr_sqr[:,np.newaxis] * pol_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-            
-            
-        if field == 'colatitudinal':
-            
-            
-            for l in range(self.l_min,l_max+1):
-                        
-                i = l - self.l_min
-                vel_arr +=oos_theta[np.newaxis,:] * orr[:,np.newaxis] * dr_pol_arr[i,:,np.newaxis] * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                vel_arr += oos_theta[np.newaxis,:] * orr[:,np.newaxis] * tor_arr[i,:,np.newaxis] * 1j * self.m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-        
-        
-        if field == 'longitudinal':
-            
-            for l in range(self.l_min,l_max+1):
-                        
-                i = l - self.l_min
-                    
-                vel_arr +=-oos_theta[np.newaxis,:] * orr[:,np.newaxis] * tor_arr[i,:,np.newaxis] * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                vel_arr += oos_theta[np.newaxis,:] * orr[:,np.newaxis] * dr_pol_arr[i,:,np.newaxis] * 1j * self.m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-        
-        
-        return vel_arr
-    
     
 
     
-    def calc_vel_grad(self,field,grad,tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr,theta_grid,l_max):
+    def calc_vel_grad(self,spatial_rep):
         
-        n_theta = len(theta_grid)
-        arr = np.zeros((self.N+1,n_theta),dtype=complex)
-        orr = 1/self.r_grid
-        orr_sqr = orr * orr
+        if not hasattr(spatial_rep,'q_r'):
+            
+            self.calc_vel_field(spatial_rep)
         
-        s_theta = np.sin(theta_grid)
-        oos_theta = 1/s_theta
-        
-        if field == 'radial':
-            
-            if grad == 'radial':
+        spatial_rep.dr_q_r = np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2 - 2 *spatial_rep.q_r/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.dr_q_theta = (np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr2_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis] - spatial_rep.q_theta/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.dr_q_phi = (-np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr2_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis] - spatial_rep.q_phi/self.mb.r_grid[:,np.newaxis]
+
+        spatial_rep.ptheta_q_r =  np.tensordot(spatial_rep.sphrharm_df1_mat,self.pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2
+        spatial_rep.ptheta_q_theta = (np.tensordot(spatial_rep.sphrharm_df2_mat,self.dr_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_df1_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]**2*np.cos(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.ptheta_q_phi = (-np.tensordot(spatial_rep.sphrharm_df2_mat,self.tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]**2*np.cos(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
+
+        spatial_rep.dtheta_q_r = (spatial_rep.ptheta_q_r-spatial_rep.q_theta)/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.dphi_q_r = (1j*self.mb.m*spatial_rep.q_r/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-spatial_rep.q_phi)/self.mb.r_grid[:,np.newaxis]
+
+        spatial_rep.dtheta_q_theta = (spatial_rep.ptheta_q_theta+spatial_rep.q_r)/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.dphi_q_theta = (1j*self.mb.m*spatial_rep.q_theta-np.cos(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_phi)/self.mb.r_grid[:,np.newaxis]/np.sin(spatial_rep.theta_grid)[np.newaxis,:]
+
+        spatial_rep.dtheta_q_phi = spatial_rep.ptheta_q_phi/self.mb.r_grid[:,np.newaxis]
+        spatial_rep.dphi_q_phi = (1j*self.mb.m*spatial_rep.q_phi+np.cos(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_theta + np.sin(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_r) /self.mb.r_grid[:,np.newaxis]/np.sin(spatial_rep.theta_grid)[np.newaxis,:]
+
+
                 
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += l *(l+1)  * (dr_pol_arr[i,:,np.newaxis] - 2*orr[:,np.newaxis]*pol_arr[i,:,np.newaxis]) * sphrharm(l,self.m,theta_grid,0)
-                
-                arr *= orr_sqr[:,np.newaxis]
-                
-            if grad == 'colatitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += (l*(l+1)*orr[:,np.newaxis]*pol_arr[i,:,np.newaxis] - dr_pol_arr[i,:,np.newaxis]) * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -1j*self.m * tor_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                
-                arr *= orr_sqr[:,np.newaxis] * oos_theta[np.newaxis,:]
-            
-            if grad == 'longitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += 1j*self.m * (l*(l+1) * orr[:,np.newaxis]*pol_arr[i,:,np.newaxis] - dr_pol_arr[i,:,np.newaxis]) * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                    arr += tor_arr[i,:,np.newaxis] * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                
-                arr *= orr_sqr[:,np.newaxis] * oos_theta[np.newaxis,:]
-            
-        if field == 'colatitudinal':
-            
-            if grad == 'radial':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += (dr2_pol_arr[i,:,np.newaxis] - orr[:,np.newaxis]*dr_pol_arr[i,:,np.newaxis]) * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += 1j*self.m * (dr_tor_arr[i,:,np.newaxis]-orr[:,np.newaxis]*tor_arr[i,:,np.newaxis]) * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                    
-                arr *= orr[:,np.newaxis] * oos_theta[np.newaxis,:]
-            
-            if grad == 'colatitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += dr_pol_arr[i,:,np.newaxis] * -np.cos(theta_grid[np.newaxis,:])*(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += dr_pol_arr[i,:,np.newaxis] * l * np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3)) * ((l+1) * np.sqrt((l+2-self.m)*(l+2+self.m)/(2*l+3)/(2*l+5))*sphrharm(l+2,self.m,theta_grid,0)[np.newaxis,:]-(l+2)*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+3)/(2*l+1)) *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -dr_pol_arr[i,:,np.newaxis] * np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1)) * (l+1) * ((l-1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-l*np.sqrt((l-1-self.m)*(l-1+self.m)/(2*l-1)/(2*l-3))*sphrharm(l-2,self.m,theta_grid,0)[np.newaxis,:])
-                    
-                    arr += 1j*self.m * tor_arr[i,:,np.newaxis] * ((l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])-np.cos(theta_grid[np.newaxis,:])*sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    
-                    arr += l*(l+1) * np.sin(theta_grid[np.newaxis,:])**2 *orr[:,np.newaxis] * pol_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                    
-                arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
-            
-            if grad == 'longitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += self.m * (dr_pol_arr[i,:,np.newaxis]*1j * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])-self.m*tor_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -np.cos(theta_grid[np.newaxis,:])*(dr_pol_arr[i,:,np.newaxis]*1j*self.m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-tor_arr[i,:,np.newaxis] *(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]))
-                
-                arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
-            
-        if field == 'longitudinal':
-            
-            if grad == 'radial':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += 1j*self.m * (dr2_pol_arr[i,:,np.newaxis] - orr[:,np.newaxis] * dr_pol_arr[i,:,np.newaxis]) * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                    arr += -(dr_tor_arr[i,:,np.newaxis] - orr[:,np.newaxis] * tor_arr[i,:,np.newaxis] ) * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                
-                arr *= orr[:,np.newaxis] * oos_theta[np.newaxis,:]
-            
-            if grad == 'colatitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += -tor_arr[i,:,np.newaxis] * -np.cos(theta_grid[np.newaxis,:])*(l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += -tor_arr[i,:,np.newaxis] * l * np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3)) * ((l+1) * np.sqrt((l+2-self.m)*(l+2+self.m)/(2*l+3)/(2*l+5))*sphrharm(l+2,self.m,theta_grid,0)[np.newaxis,:]-(l+2)*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+3)/(2*l+1)) *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:])
-                    arr += tor_arr[i,:,np.newaxis] * np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1)) * (l+1) * ((l-1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-l*np.sqrt((l-1-self.m)*(l-1+self.m)/(2*l-1)/(2*l-3))*sphrharm(l-2,self.m,theta_grid,0)[np.newaxis,:])
-                
-                    arr += 1j*self.m * ((l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])-np.cos(theta_grid[np.newaxis,:])*sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]) * dr_pol_arr[i,:,np.newaxis]
-                
-                arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
-                
-            if grad == 'longitudinal':
-                
-                for l in range(self.l_min,l_max+1):
-                    
-                    i = l - self.l_min
-                    
-                    arr += self.m * (-self.m * dr_pol_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]-1j* (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:])*tor_arr[i,:,np.newaxis])
-                    arr += np.cos(theta_grid[np.newaxis,:]) * ( dr_pol_arr[i,:,np.newaxis] * (l*np.sqrt((l+1-self.m)*(l+1+self.m)/(2*l+1)/(2*l+3))* sphrharm(l+1,self.m,theta_grid,0)[np.newaxis,:]-(l+1)*np.sqrt((l-self.m)*(l+self.m)/(2*l+1)/(2*l-1))*sphrharm(l-1,self.m,theta_grid,0)[np.newaxis,:]) + 1j*self.m *sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]*tor_arr[i,:,np.newaxis])
-                    
-                    arr += l*(l+1) * np.sin(theta_grid[np.newaxis,:])**2 *orr[:,np.newaxis] * pol_arr[i,:,np.newaxis] * sphrharm(l,self.m,theta_grid,0)[np.newaxis,:]
-                    
-                arr *= orr[:,np.newaxis]**2 * oos_theta[np.newaxis,:]**2
-                
-                
-            
-        return arr
     
+class Spatial_representation:
+    
+    def __init__(self,theta_grid,soln):
+        
+        self.s = soln
+        self.n_theta = len(theta_grid)
+        self.theta_grid = theta_grid
+
+        self.gen_theta_matrices()
+
+    def gen_theta_matrices(self):
+        
+        
+        
+        self.sphrharm_eval_mat = np.zeros((self.n_theta,self.s.mb.n_l))
+        self.sphrharm_df1_mat = np.zeros((self.n_theta,self.s.mb.n_l))
 
 
-class Rhs_builder:
+        s_max = self.s.mb.l_max+1
+
+        for l in range(self.s.mb.l_min,s_max):
+            
+            i = l - self.s.mb.l_min
+            self.sphrharm_eval_mat[:,i] = np.real(sphrharm(l,self.s.mb.m,self.theta_grid,0))
+
+        self.sphrharm_df1_mat[:,-1] = (self.s.mb.l_max+1) * self.s.mb.c_l[-1] * np.real(sphrharm(self.s.mb.l_max-1,self.s.mb.m,self.theta_grid,0))
+        for l in range(self.s.mb.l_min,s_max):
+            
+            i = l - self.s.mb.l_min
+            self.sphrharm_df1_mat[:,i] = np.real(l * self.s.mb.c_l[i+1] * sphrharm(l+1,self.s.mb.m,self.theta_grid,0) - (l+1)*self.s.mb.c_l[i] * sphrharm(l-1,self.s.mb.m,self.theta_grid,0))
+
+        self.sphrharm_df1_mat *= 1/np.sin(self.theta_grid)[:,np.newaxis]
+
+        self.l_arr = np.linspace(self.s.mb.l_min,self.s.mb.l_max,self.s.mb.n_l)
+
+        self.sphrharm_df2_mat = -self.sphrharm_df1_mat * np.cos(self.theta_grid[:,np.newaxis])/np.sin(self.theta_grid[:,np.newaxis])
+        self.sphrharm_df2_mat +=  ((self.s.mb.m/np.sin(self.theta_grid[:,np.newaxis]))**2-self.l_arr*(self.l_arr+1)[np.newaxis,:]) * self.sphrharm_eval_mat
+
+class PDE_matrix_frame:
+    
+    def __init__(self,matrix,matrix_builder,ek,for_freq):
+        
+        self.ek = ek
+        self.for_freq = for_freq
+        self.mb = matrix_builder
+        self.matrix = matrix
+        
+    def calc_LU(self):
+        
+        self.LU = spla.splu(self.matrix)
+        
+    def solve_sys(self,rhs):
+        
+        if not hasattr(self, 'LU'):
+            self.calc_LU()
+        
+        return Soln_forced(self.LU.solve(rhs),self.mb,self.ek,self.for_freq)
+
+class Boundary_rhs_builder:
     
     def __init__(self,N,rad_ratio,m,l_max):
         

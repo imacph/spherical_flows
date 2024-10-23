@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from scipy.special import lpmv
 import scipy.sparse.linalg as spla
-from sphrflow_main import Matrix_builder_forced,Rhs_builder,Soln_forced,sphrharm
+from sphrflow_main import Matrix_builder_forced,Boundary_rhs_builder,Soln_forced,sphrharm,Spatial_representation,PDE_matrix_frame
 import tracemalloc
 from math import factorial
 
@@ -143,98 +143,60 @@ def Ekman_kin(freq,eps,E,eta):
     return np.pi/3/np.sqrt(2) * eps**2*E**(1/2)/(1-eta)**4 * ((2-freq)**(3/2)+(2+freq)**(3/2)-1/5*((2-freq)**(5/2)+(2+freq)**(5/2)))
  
  
+'resolution and symmetry parameters'
+N =60 # number of radial grid points in soln.
+l_max =50 # maximum spherical harmonic degree in soln.
+rad_ratio = 0.6 # spherical shell aspect ratio
+m = 0 # azimuthal symmetry order
 
-N =100
-l_max =100
-rad_ratio = 0.5
-m = 0
+'libration parameters'
+ek = 10**-4 # ekman number
+Re = 300 # reynolds number
+for_freq = 1. # forcing frequency
 
-t0 = time()
-
-
-ek = 10**-4
-
-Re = 300
+# calculates the appropriate libration amplitude
 eps = Re*np.sqrt(ek)*(1-rad_ratio)
 
-
-for_freq = 1.
+# information about BCs to pass to solver
 bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 
+'matrix construction and inverse problem solution'
+t0 = time() 
 
+# building the PDE matrix
 matrix_builder = Matrix_builder_forced(N,rad_ratio,m,l_max)
-rhs_builder = Rhs_builder(N,rad_ratio,m,l_max)
+PDE_mat = PDE_matrix_frame(matrix_builder.gen_PDE_matrix('tor',for_freq,ek),matrix_builder,ek,for_freq)
 
-PDE_mat = matrix_builder.gen_PDE_matrix('tor',for_freq,ek)
+# building the libration forcing RHS
+rhs_builder = Boundary_rhs_builder(N,rad_ratio,m,l_max)
+rhs_builder.gen_rhs(bc_list,'tor')
 
-LU = spla.splu(PDE_mat)
+# solving inverse problem and formatting solution arrays
+PDE_soln = PDE_mat.solve_sys(rhs_builder.rhs)
+PDE_soln.process_soln('tor')
 
-rhs_builder.gen_rhs(bc_list)
-soln = LU.solve(rhs_builder.rhs_tor_odd)
-
-
-PDE_soln = Soln_forced(soln,matrix_builder)
-
-
-tor_arr,dr_tor_arr,pol_arr,dr_pol_arr,dr2_pol_arr = PDE_soln.process_soln('tor')
-
+# the time to complete the solution
 sol_time = time()-t0
 print(sol_time)
 
+# calculating theta_grid for spatial representation of solution
 n_theta = 4*PDE_soln.mb.n_l
 theta_min = 0
 theta_max = np.pi
 theta_grid = 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
 
-sphrharm_eval_mat = np.zeros((n_theta,PDE_soln.mb.n_l))
-sphrharm_df1_mat = np.zeros((n_theta,PDE_soln.mb.n_l))
+spat_rep = Spatial_representation(theta_grid,PDE_soln)
 
+# calculating velocity field and its gradients
+PDE_soln.calc_vel_field(spat_rep)
+PDE_soln.calc_vel_grad(spat_rep)
 
-s_max = PDE_soln.mb.l_max+1
-#s_max = 8
-for l in range(PDE_soln.mb.l_min,s_max):
-    
-    i = l - PDE_soln.mb.l_min
-    sphrharm_eval_mat[:,i] = np.real(sphrharm(l,PDE_soln.mb.m,theta_grid,0))
+'shortening names'
+q_r,q_theta,q_phi = spat_rep.q_r,spat_rep.q_theta,spat_rep.q_phi
 
-sphrharm_df1_mat[:,-1] = (PDE_soln.mb.l_max+1) * PDE_soln.mb.c_l[-1] * np.real(sphrharm(PDE_soln.mb.l_max-1,PDE_soln.mb.m,theta_grid,0))
-for l in range(PDE_soln.mb.l_min,s_max):
-    
-    i = l - PDE_soln.mb.l_min
-    sphrharm_df1_mat[:,i] = np.real(l * PDE_soln.mb.c_l[i+1] * sphrharm(l+1,PDE_soln.mb.m,theta_grid,0) - (l+1)*PDE_soln.mb.c_l[i] * sphrharm(l-1,PDE_soln.mb.m,theta_grid,0))
-
-sphrharm_df1_mat *= 1/np.sin(theta_grid)[:,np.newaxis]
-
-l_arr = np.linspace(PDE_soln.mb.l_min,PDE_soln.mb.l_max,PDE_soln.mb.n_l)
-
-sphrharm_df2_mat = -sphrharm_df1_mat * np.cos(theta_grid[:,np.newaxis])/np.sin(theta_grid[:,np.newaxis])
-sphrharm_df2_mat +=  ((PDE_soln.mb.m/np.sin(theta_grid[:,np.newaxis]))**2-l_arr*(l_arr+1)[np.newaxis,:]) * sphrharm_eval_mat
-
-
-q_r = np.tensordot(sphrharm_eval_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.mb.r_grid[:,np.newaxis]**2
-q_theta = (np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis]
-q_phi = (-np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis]
-
-dr_q_r = np.tensordot(sphrharm_eval_mat,dr_pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.mb.r_grid[:,np.newaxis]**2 - 2 *q_r/PDE_soln.mb.r_grid[:,np.newaxis]
-dr_q_theta = (np.tensordot(sphrharm_df1_mat,dr2_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr_tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis] - q_theta/PDE_soln.mb.r_grid[:,np.newaxis]
-dr_q_phi = (-np.tensordot(sphrharm_df1_mat,dr_tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_eval_mat,dr2_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis] - q_phi/PDE_soln.mb.r_grid[:,np.newaxis]
-
-ptheta_q_r =  np.tensordot(sphrharm_df1_mat,pol_arr*(l_arr*(l_arr+1))[:,np.newaxis],axes=1).T/PDE_soln.mb.r_grid[:,np.newaxis]**2
-ptheta_q_theta = (np.tensordot(sphrharm_df2_mat,dr_pol_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,tor_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis]
-ptheta_q_phi = (-np.tensordot(sphrharm_df2_mat,tor_arr,axes=1).T+1j*m*np.tensordot(sphrharm_df1_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]-1j*m*np.tensordot(sphrharm_eval_mat,dr_pol_arr,axes=1).T/np.sin(theta_grid)[np.newaxis,:]**2*np.cos(theta_grid)[np.newaxis,:])/PDE_soln.mb.r_grid[:,np.newaxis]
-
-dtheta_q_r = (ptheta_q_r-q_theta)/PDE_soln.mb.r_grid[:,np.newaxis]
-dphi_q_r = (1j*m*q_r/np.sin(theta_grid)[np.newaxis,:]-q_phi)/PDE_soln.mb.r_grid[:,np.newaxis]
-
-dtheta_q_theta = (ptheta_q_theta+q_r)/PDE_soln.mb.r_grid[:,np.newaxis]
-dphi_q_theta = (1j*PDE_soln.mb.m*q_theta-np.cos(theta_grid)[np.newaxis,:]*q_phi)/PDE_soln.mb.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
-
-dtheta_q_phi = ptheta_q_phi/PDE_soln.mb.r_grid[:,np.newaxis]
-dphi_q_phi = (1j*PDE_soln.mb.m*q_phi+np.cos(theta_grid)[np.newaxis,:]*q_theta + np.sin(theta_grid)[np.newaxis,:]*q_r) /PDE_soln.mb.r_grid[:,np.newaxis]/np.sin(theta_grid)[np.newaxis,:]
-
-
-
-
+dr_q_r,dtheta_q_r,dphi_q_r = spat_rep.dr_q_r,spat_rep.dtheta_q_r,spat_rep.dphi_q_r 
+dr_q_theta,dtheta_q_theta,dphi_q_theta = spat_rep.dr_q_theta,spat_rep.dtheta_q_theta,spat_rep.dphi_q_theta
+dr_q_phi,dtheta_q_phi,dphi_q_phi = spat_rep.dr_q_phi,spat_rep.dtheta_q_phi,spat_rep.dphi_q_phi 
 
 en = 1/4*(np.abs(q_r)**2+np.abs(q_theta)**2+np.abs(q_phi)**2)
 
@@ -337,7 +299,7 @@ print(np.abs(inn))
 #field = np.real(inn*eig_phi)
 #field = np.real(q_phi*np.exp(1j*for_freq*(0*np.pi/2/for_freq+np.pi/2/for_freq)))
 
-field = disp
+field = en
 
 vmin = np.min(field)
 vmax = np.max(field)
@@ -430,8 +392,8 @@ if vmin < 0:
 elif vmin >= 0:
     
     
-    off=-9
-    top = -2
+    off=-5.5
+    top = 0
     norm = colors.LogNorm(vmin = 10**(off)*vmax,vmax=10**(top)*vmax)
     levels = np.logspace(max_dec+off,max_dec+top,100)
 
@@ -456,9 +418,9 @@ ax.axis('off')
 
 #ax.plot(1.9755282,0,ms=1,marker='o')
 
-fig,ax=plt.subplots(1,1,figsize=(5,5),dpi=200)
+#fig,ax=plt.subplots(1,1,figsize=(5,5),dpi=200)
 
-ax.plot(PDE_soln.mb.r_grid,np.imag(q_theta[:,len(theta_grid)//2]))
+#ax.plot(PDE_soln.mb.r_grid,np.imag(q_theta[:,len(theta_grid)//2]))
 
 '''
 fig,ax = plt.subplots(1,1,figsize=(8,5),dpi=200)
