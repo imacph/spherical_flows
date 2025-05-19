@@ -1,10 +1,12 @@
 import numpy as np
 from scipy import sparse as sp
-from time import time
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 from scipy.special import lpmv
 import scipy.sparse.linalg as spla
+
+def gen_theta_grid_cheb(n_theta,theta_min,theta_max):
+    
+    return 0.5 * (np.cos(np.linspace(1,n_theta,n_theta)*np.pi/(n_theta+1))[::-1] * (theta_max-theta_min) + (theta_max+theta_min))
+
 def trun_fact(l,m):
     
     
@@ -88,43 +90,48 @@ class Iterator:
     
     def __init__(self,N,rad_ratio,m,l_max):
         
-        self.matrix_builder = Matrix_builder_forced(N,rad_ratio,m,l_max)
+        self.mb = Matrix_builder_forced(N,rad_ratio,m,l_max)
         self.rhs_builder = Boundary_rhs_builder(N,rad_ratio,m,l_max)
 
-    def iterate(self,freq_array,ek,bc_list,odd_flag,tol=1e-4,max_inner_it=30):
+    def iterate(self,freq_array,ek,bc_list,odd_flag,tol=1e-4,max_inner_it=30,savepath = None):
         
-        self.rhs_builder.gen_rhs(bc_list)
-        
-        base_freq_mat = self.matrix_builder.gen_freq_matrix(odd_flag,1.)
+
+        base_freq_mat = self.mb.gen_freq_matrix(odd_flag,1.)
         self.rhs_builder.gen_rhs(bc_list,odd_flag)
         
         
         n_freq = len(freq_array)
+        powers = np.zeros((n_freq,2))
         k = 0 
         while k <= n_freq-1:
-            
+            print(k,k/len(freq_array))
             freq0 = freq_array[k]
-            PDE_mat = self.matrix_builder.gen_PDE_matrix(odd_flag,freq_array[k],ek)
             
-            LU = spla.splu(PDE_mat)
-            soln0 = LU.solve(self.rhs_builder.rhs)
+            PDE_mat = PDE_matrix_frame(self.mb.gen_PDE_matrix(odd_flag,freq_array[k],ek),self.mb,ek,freq0)
+            PDE_soln0 = PDE_mat.solve_sys(self.rhs_builder.rhs)
+            PDE_soln0.process_soln('tor')
             
+            spat_rep = Spatial_representation(gen_theta_grid_cheb(2*self.mb.n_l,0,np.pi), PDE_soln0)
             
+            spat_rep.calc_surface_power()
+
+            powers[k,1] = spat_rep.power_cmb
+            powers[k,0] = freq_array[k]
             inner_iterating = True
             n_suc_it = 0
             while inner_iterating:
                 
                 inner_k = 0
                 res = np.inf
-                soln = soln0
-                while inner_k < max_inner_it-1 and res > tol:
+                PDE_soln = PDE_soln0
+                while inner_k < max_inner_it-1 and res > tol and k+n_suc_it+1 <= n_freq-1:
                     
-                    freq = freq_array[k]
+                    freq = freq_array[k+1+n_suc_it]
                     
-                    freq_mat = (freq-freq0)*base_freq_mat
+                    freq_mat = (freq-freq_array[k])*base_freq_mat
                     
-                    soln = LU.solve(self.rhs_builder.rhs-freq_mat @ soln)
-                    res = np.linalg.norm((PDE_mat+freq_mat) @ soln-self.rhs_builder.rhs)
+                    PDE_soln = PDE_mat.solve_sys(self.rhs_builder.rhs-freq_mat @ PDE_soln.soln)
+                    res = np.linalg.norm((PDE_mat.matrix+freq_mat) @ PDE_soln.soln-self.rhs_builder.rhs)
                     
                     inner_k += 1
             
@@ -133,11 +140,20 @@ class Iterator:
                     inner_iterating = False
                     
                 else:
+                    #print('iter',n_suc_it,inner_k,res,freq)
                     
+                    PDE_soln.process_soln('tor')
+                    spat_rep.s=PDE_soln
+                    
+                    spat_rep.calc_surface_power()
+                    powers[k+1+n_suc_it,1] = spat_rep.power_cmb
+                    powers[k+1+n_suc_it,0] = freq
                     n_suc_it += 1
-                    
-            k += 1 + n_suc_it
-                    
+
+            k += n_suc_it +1
+            
+            if savepath != None:
+                np.savetxt(savepath,powers)
                     
             
 
@@ -145,7 +161,7 @@ class Iterator:
         
 class Matrix_builder_forced:
     
-    def __init__(self,N,rad_ratio,m,l_max):
+    def __init__(self,N,rad_ratio,m,l_max,stress_free_icb = False,stress_free_cmb=False):
         
         self.N = N
         self.rad_ratio = rad_ratio
@@ -157,7 +173,8 @@ class Matrix_builder_forced:
         
         self.r_fac = 2/(self.r_end-self.r_start)
         
-        
+        self.stress_free_icb = stress_free_icb
+        self.stress_free_cmb = stress_free_cmb
         if self.rad_ratio > 0.0:
             self.x_grid = np.cos(np.linspace(0,N,N+1)*np.pi/N)
             self.r_grid = self.x_grid * (self.r_end-self.r_start)/2 + (self.r_end+self.r_start)/2
@@ -350,10 +367,18 @@ class Matrix_builder_forced:
                 diag_mat[1:-1,:] += (1j * (-2*self.m) * self.eval_mat + ek*lp2*self.orr_sqr_mat*self.eval_mat)[1:-1,:]
                 diag_mat[1:-1,:] += -lp * ek * self.df2_mat[1:-1,:]
                 
-                diag_mat[0,:] = self.eval_mat[0,:]
-                #diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
                 
+                if self.stress_free_icb: 
+                    diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
+                else:
+                    diag_mat[-1,:] = self.eval_mat[-1,:]
+                    
+                if self.stress_free_cmb:
+                    diag_mat[0,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[0,:]
+                else:
+                    diag_mat[0,:] = self.eval_mat[0,:]
+                    
+                    
                 upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
                 
                 upper_mat[1:-1] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[1:-1]
@@ -375,11 +400,23 @@ class Matrix_builder_forced:
                 diag_mat[2:-2,:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat)[2:-2,:]
                 diag_mat[2:-2,:] += lp * ek * self.df4_mat[2:-2,:]
                 
+                
+                if self.stress_free_icb:
+                    diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+                else:
+                    diag_mat[-2,:] = self.df1_mat[-1,:]
+                    
+                if self.stress_free_cmb:
+                    diag_mat[1,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[0,:]
+                
+                else:
+                    diag_mat[1,:] = self.df1_mat[0,:]
+                    
+                    
                 diag_mat[0,:] = self.eval_mat[0,:]
                 diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[1,:] = self.df1_mat[0,:]
-                #diag_mat[-2,:] = self.df1_mat[-1,:]
-                diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+                
+                
                 
                 
                 upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
@@ -977,9 +1014,8 @@ class Spatial_representation:
 
         self.gen_theta_matrices()
 
+
     def gen_theta_matrices(self):
-        
-        
         
         self.sphrharm_eval_mat = np.zeros((self.n_theta,self.s.mb.n_l))
         self.sphrharm_df1_mat = np.zeros((self.n_theta,self.s.mb.n_l))
@@ -1004,6 +1040,78 @@ class Spatial_representation:
 
         self.sphrharm_df2_mat = -self.sphrharm_df1_mat * np.cos(self.theta_grid[:,np.newaxis])/np.sin(self.theta_grid[:,np.newaxis])
         self.sphrharm_df2_mat +=  ((self.s.mb.m/np.sin(self.theta_grid[:,np.newaxis]))**2-self.l_arr*(self.l_arr+1)[np.newaxis,:]) * self.sphrharm_eval_mat
+    
+    def calc_bulk_dissipation(self):
+        
+        
+        if not hasattr(self, 'dq_r_r'):
+            
+            self.s.calc_vel_grad(self)
+        
+        stress_rr = 2*self.s.ek*self.dr_q_r
+        stress_rtheta = (self.dr_q_theta + self.dtheta_q_r)*self.s.ek
+        stress_rphi =(self.dr_q_phi + self.dphi_q_r)*self.s.ek
+
+        stress_thetatheta = 2*self.dtheta_q_theta*self.s.ek
+        stress_thetaphi = (self.dphi_q_theta + self.dtheta_q_phi)*self.s.ek
+        stress_phiphi = 2*self.dphi_q_phi*self.s.ek
+
+        self.dissipation = self.dr_q_r * np.conjugate(stress_rr)
+        self.dissipation += self.dtheta_q_r * np.conjugate(stress_rtheta)
+        self.dissipation += self.dphi_q_r * np.conjugate(stress_rphi)
+
+        self.dissipation += self.dr_q_theta * np.conjugate(stress_rtheta)
+        self.dissipation += self.dtheta_q_theta * np.conjugate(stress_thetatheta)
+        self.dissipation += self.dphi_q_theta * np.conjugate(stress_thetaphi)
+
+        self.dissipation += self.dr_q_phi * np.conjugate(stress_rphi)
+        self.dissipation += self.dtheta_q_phi * np.conjugate(stress_thetaphi)
+        self.dissipation += self.dphi_q_phi * np.conjugate(stress_phiphi)
+
+        self.dissipation = 1/2 * np.real(self.dissipation)
+
+
+        self.total_dissipation = 2*np.pi * np.trapz(np.sin(self.theta_grid) * np.trapz(self.s.mb.r_grid[::-1,np.newaxis]**2*self.dissipation[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
+
+    def calc_total_kin(self):
+        
+        if not hasattr(self,'q_r'):
+            
+            self.s.calc_vel_field(self)
+        
+        self.kinetic_energy = 1/4 * (np.abs(self.q_r)**2+np.abs(self.q_theta)**2+np.abs(self.q_phi)**2)
+        
+        self.total_kinetic_energy = 2*np.pi * np.trapz(np.sin(self.theta_grid) * np.trapz(self.s.mb.r_grid[::-1,np.newaxis]**2*self.kinetic_energy[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
+    
+    def calc_surface_power(self,full_calc=False):
+        
+        if not hasattr(self, 'dq_r_r'):
+            
+            self.s.calc_vel_grad(self)
+        
+        tau_phi_r =  self.dphi_q_r + self.dr_q_phi 
+        tau_theta_r = self.dtheta_q_r + self.dr_q_theta
+        
+        
+        self.power_cmb = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+self.q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=self.theta_grid,axis=0)
+        self.power_icb = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*np.conjugate(tau_phi_r[-1,:])+self.q_theta[-1,:]*np.conjugate(tau_theta_r[-1,:])),x=self.theta_grid,axis=0)
+        
+        
+        if full_calc:
+            
+            self.power_cmb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
+            self.power_cmb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
+            self.power_icb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
+            self.power_icb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
+            
+    def calc_advection(self):
+        if not hasattr(self, 'dq_r_r'):
+            
+            self.s.calc_vel_grad(self)
+        self.mean_adv_r = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_r)+self.q_theta*np.conjugate(self.dtheta_q_r)+self.q_phi*np.conjugate(self.dphi_q_r))
+        self.mean_adv_theta = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_theta)+self.q_theta*np.conjugate(self.dtheta_q_theta)+self.q_phi*np.conjugate(self.dphi_q_theta))
+        self.mean_adv_phi = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_phi)+self.q_theta*np.conjugate(self.dtheta_q_phi)+self.q_phi*np.conjugate(self.dphi_q_phi))
+
 
 class PDE_matrix_frame:
     
