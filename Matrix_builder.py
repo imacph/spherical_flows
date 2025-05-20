@@ -29,10 +29,10 @@ class Matrix_builder:
             if self.rad_ratio > 0.0:
 
                 
-                    self.x_grid = np.cos(np.linspace(0,n_rad_max,n_rad_max+1)*np.pi/n_rad_max)
-                    self.r_grid = self.x_grid * (self.r_end-self.r_start)/2 + (self.r_end+self.r_start)/2
-                    self.eval_mat,self.df1_mat,self.df2_mat,self.df4_mat = self.gen_deriv_mats()
-                
+                self.x_grid = np.cos(np.linspace(0,n_rad_max,n_rad_max+1)*np.pi/n_rad_max)
+                self.r_grid = self.x_grid * (self.r_end-self.r_start)/2 + (self.r_end+self.r_start)/2
+                self.eval_mat,self.df1_mat,self.df2_mat,self.df4_mat = self.gen_deriv_mats()
+            
             elif self.rad_ratio == 0.0:
 
                 
@@ -64,6 +64,9 @@ class Matrix_builder:
     
     def gen_deriv_mats_fs(self):   
 
+        grid_diag = sp.csr_matrix(np.diag(self.x_grid),dtype=complex)
+        grid_sqr_diag = grid_diag * grid_diag
+        
         if self.radial_method == 'chebyshev':
             df1_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
             df2_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
@@ -81,9 +84,7 @@ class Matrix_builder:
             df4_mat_even = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
             eval_mat_even = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
             
-            grid_diag = sp.csr_matrix(np.diag(self.x_grid),dtype=complex)
-            grid_sqr_diag = grid_diag * grid_diag
-            
+
             for i in range(self.n_rad_max+1):
 
                 n = 2*i+1
@@ -123,8 +124,23 @@ class Matrix_builder:
             return eval_mat_even,eval_mat_odd,df1_mat_even,df1_mat_odd,df2_mat_even,df2_mat_odd,df4_mat_even,df4_mat_odd
         
         elif self.radial_method == 'finite_difference':
-            # Placeholder for finite difference method
-            pass
+            print('tt')
+            eval_mat,df1_mat,df2_mat,df4_mat = self.gen_deriv_mats()
+            df3_mat = df2_mat @ df1_mat
+
+            eval_mat_odd = grid_sqr_diag @ eval_mat
+            df1_mat_odd = grid_sqr_diag @ df1_mat + 2*grid_diag @ eval_mat
+            df2_mat_odd = grid_sqr_diag @ df2_mat + 4*grid_diag @ df1_mat + 2 * eval_mat
+            df4_mat_odd = grid_sqr_diag @ df4_mat + 8 * grid_diag @ df3_mat + 12 * df2_mat
+
+            eval_mat_even = grid_diag @ eval_mat
+            df1_mat_even = grid_diag @ df1_mat + eval_mat
+            df2_mat_even = grid_diag @ df2_mat + 2*df1_mat
+            df4_mat_even = grid_diag @ df4_mat + 4 *df3_mat
+
+            return eval_mat_even,eval_mat_odd,df1_mat_even,df1_mat_odd,df2_mat_even,df2_mat_odd,df4_mat_even,df4_mat_odd
+
+            
 
 
     def gen_deriv_mats(self):
@@ -275,7 +291,11 @@ class Matrix_builder:
                 diag_mat[1:] += (1j * (lp*for_freq-2*self.m) * self.eval_mat_odd + ek*lp2*self.orr_sqr_mat*self.eval_mat_odd)[1:]
                 diag_mat[1:] += -lp * ek * self.df2_mat_odd[1:]
                 
-                diag_mat[0,:] = self.eval_mat_odd[0,:]
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_odd[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+
                 
                 upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
                 
@@ -293,7 +313,11 @@ class Matrix_builder:
                 diag_mat[1:] += (1j * (lp*for_freq-2*self.m) * self.eval_mat_even + ek*lp2*self.orr_sqr_mat*self.eval_mat_even)[1:]
                 diag_mat[1:] += -lp * ek * self.df2_mat_even[1:]
                 
-                diag_mat[0,:] = self.eval_mat_even[0,:]
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_even[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+
                 
                 upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
                 
@@ -316,8 +340,13 @@ class Matrix_builder:
                 diag_mat[2:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_odd)[2:]
                 diag_mat[2:] += lp * ek * self.df4_mat_odd[2:]
                 
-                diag_mat[0,:] = self.eval_mat_odd[0,:]
-                diag_mat[1,:] = self.df1_mat_odd[0,:]
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_odd[0,:]
+                    diag_mat[1,:] = self.df1_mat_odd[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+                    diag_mat[1,1] = 1
+                
 
 
                 upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
@@ -340,8 +369,12 @@ class Matrix_builder:
                 diag_mat[2:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_even)[2:]
                 diag_mat[2:] += lp * ek * self.df4_mat_even[2:]
                 
-                diag_mat[0,:] = self.eval_mat_even[0,:]
-                diag_mat[1,:] = self.df1_mat_even[0,:]
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_even[0,:]
+                    diag_mat[1,:] = self.df1_mat_even[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+                    diag_mat[1,1] = 1
 
 
                 upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]

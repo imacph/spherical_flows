@@ -12,15 +12,15 @@ from PDE_matrix_frame import PDE_matrix_frame,Spatial_representation
 
  
 'resolution and symmetry parameters'
-N =80 # number of radial grid points in soln.
+N =120 # number of radial grid points in soln.
 l_max =120# maximum spherical harmonic degree in soln.
-rad_ratio = 0.35 # spherical shell aspect ratio
+rad_ratio = 0. # spherical shell aspect ratio
 m = 0 # azimuthal symmetry order
 
 'libration parameters'
 ek = 10**-4 # ekman number
 Re = 1 # reynolds number
-for_freq = 1 # forcing frequency
+for_freq = np.sqrt(12/7) # forcing frequency
 
 # calculates the appropriate libration amplitude
 eps = Re*np.sqrt(ek)*(1-rad_ratio)
