@@ -12,22 +12,21 @@ from PDE_matrix_frame import PDE_matrix_frame,Spatial_representation
 
  
 'resolution and symmetry parameters'
-N =120 # number of radial grid points in soln.
-l_max =120# maximum spherical harmonic degree in soln.
+N =40 # number of radial grid points in soln.
+l_max =40# maximum spherical harmonic degree in soln.
 rad_ratio = 0. # spherical shell aspect ratio
 m = 0 # azimuthal symmetry order
 
 'libration parameters'
 ek = 10**-4 # ekman number
 Re = 1 # reynolds number
-for_freq = np.sqrt(12/7) # forcing frequency
+for_freq = 1. # forcing frequency
 
 # calculates the appropriate libration amplitude
 eps = Re*np.sqrt(ek)*(1-rad_ratio)
 
 # information about BCs to pass to solver
 bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
-
 'matrix construction and inverse problem solution'
 t0 = time() 
 

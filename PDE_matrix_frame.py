@@ -21,10 +21,10 @@ class PDE_matrix_frame:
         if not hasattr(self, 'LU'):
             self.calc_LU()
         
-        return Soln_forced(self.LU.solve(rhs),self.mb,self.ek,self.for_freq)
+        return PDE_solution(self.LU.solve(rhs),self.mb,self.ek,self.for_freq)
     
 
-class Soln_forced:
+class PDE_solution:
     
     def __init__(self,soln,mat_builder,ek,for_freq):
         

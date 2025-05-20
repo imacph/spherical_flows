@@ -266,9 +266,12 @@ class Matrix_builder:
                 elif self.radial_method == 'finite_difference':
 
                     diag_mat[0,0] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
+
                     diag_mat[-1,-1] = 1
-                    diag_mat[1,1] = 1
-                    diag_mat[-2,-2] = 1
+                    diag_mat[-2,-1] = 1
+                    diag_mat[-2,-2] = self.r_grid[-2] - self.r_grid[-1]
                 
                 
                 upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
@@ -345,7 +348,10 @@ class Matrix_builder:
                     diag_mat[1,:] = self.df1_mat_odd[0,:]
                 elif self.radial_method == 'finite_difference':
                     diag_mat[0,0] = 1
-                    diag_mat[1,1] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
+
+                    
                 
 
 
@@ -374,7 +380,8 @@ class Matrix_builder:
                     diag_mat[1,:] = self.df1_mat_even[0,:]
                 elif self.radial_method == 'finite_difference':
                     diag_mat[0,0] = 1
-                    diag_mat[1,1] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
 
 
                 upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
