@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.sparse.linalg as spla
 from utility_functions import sphrharm
+
+
 class PDE_matrix_frame:
     
     def __init__(self,matrix,matrix_builder,ek,for_freq):

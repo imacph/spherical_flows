@@ -158,8 +158,36 @@ class Matrix_builder:
             return eval_mat,self.r_fac*df1_mat,self.r_fac**2*df2_mat,self.r_fac**4*df4_mat
         
         elif self.radial_method == 'finite_difference':
-            # Placeholder for finite difference method
-            pass
+
+            eval_mat = sp.identity(self.n_rad_max+1,dtype=complex)
+            df1_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
+            df2_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
+
+            df1_mat[0,0] = -1/(self.r_grid[1]-self.r_grid[0])
+            df1_mat[0,1] = 1/(self.r_grid[1]-self.r_grid[0])
+
+            df1_mat[-1,-1] = 1/(self.r_grid[-1]-self.r_grid[-2])
+            df1_mat[-1,-2] = -1/(self.r_grid[-1]-self.r_grid[-2])
+
+            df2_mat[0,0] = 2/(self.r_grid[2]-self.r_grid[0])/(self.r_grid[1]-self.r_grid[0])
+            df2_mat[0,1] = -2/(self.r_grid[1]-self.r_grid[0])/(self.r_grid[2]-self.r_grid[1])
+            df2_mat[0,2] = 2/(self.r_grid[2]-self.r_grid[0])/(self.r_grid[2]-self.r_grid[1])
+
+            df2_mat[-1,-1] = 2/(self.r_grid[-3]-self.r_grid[-1])/(self.r_grid[-2]-self.r_grid[-1])
+            df2_mat[-1,-2] = -2/(self.r_grid[-2]-self.r_grid[-1])/(self.r_grid[-3]-self.r_grid[-2])
+            df2_mat[-1,-3] = 2/(self.r_grid[-3]-self.r_grid[-1])/(self.r_grid[-3]-self.r_grid[-2])
+            
+            for i in range(1,self.n_rad_max):
+
+                df1_mat[i,i-1] = -1/(self.r_grid[i+1]-self.r_grid[i-1])
+                df1_mat[i,i+1] = 1/(self.r_grid[i+1]-self.r_grid[i-1])
+
+                df2_mat[i,i-1] = 2/(self.r_grid[i]-self.r_grid[i-1])/(self.r_grid[i+1]-self.r_grid[i-1])
+                df2_mat[i,i] = -2/(self.r_grid[i+1]-self.r_grid[i])/(self.r_grid[i]-self.r_grid[i-1])
+                df2_mat[i,i+1] = 2/(self.r_grid[i+1]-self.r_grid[i])/(self.r_grid[i+1]-self.r_grid[i-1])
+
+            return eval_mat,df1_mat,df2_mat,df2_mat@df2_mat
+
 
 
     def gen_block_row(self,field,l,for_freq,ek):
@@ -178,9 +206,18 @@ class Matrix_builder:
                 diag_mat[1:-1,:] += (1j * (lp*for_freq-2*self.m) * self.eval_mat + ek*lp2*self.orr_sqr_mat*self.eval_mat)[1:-1,:]
                 diag_mat[1:-1,:] += -lp * ek * self.df2_mat[1:-1,:]
                 
-                diag_mat[0,:] = self.eval_mat[0,:]
-                diag_mat[-1,:] = self.eval_mat[-1,:]
-                #diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat[0,:]
+                    diag_mat[-1,:] = self.eval_mat[-1,:]
+                    #diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
+
+                elif self.radial_method == 'finite_difference':
+
+                    diag_mat[0,0] = 1
+                    diag_mat[-1,-1] = 1
+
+                
+                
                 
                 upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
                 
@@ -203,11 +240,19 @@ class Matrix_builder:
                 diag_mat[2:-2,:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat)[2:-2,:]
                 diag_mat[2:-2,:] += lp * ek * self.df4_mat[2:-2,:]
                 
-                diag_mat[0,:] = self.eval_mat[0,:]
-                diag_mat[-1,:] = self.eval_mat[-1,:]
-                diag_mat[1,:] = self.df1_mat[0,:]
-                diag_mat[-2,:] = self.df1_mat[-1,:]
-                #diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat[0,:]
+                    diag_mat[-1,:] = self.eval_mat[-1,:]
+                    diag_mat[1,:] = self.df1_mat[0,:]
+                    diag_mat[-2,:] = self.df1_mat[-1,:]
+                    #diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+                elif self.radial_method == 'finite_difference':
+
+                    diag_mat[0,0] = 1
+                    diag_mat[-1,-1] = 1
+                    diag_mat[1,1] = 1
+                    diag_mat[-2,-2] = 1
                 
                 
                 upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]

@@ -12,7 +12,7 @@ from PDE_matrix_frame import PDE_matrix_frame,Spatial_representation
 
  
 'resolution and symmetry parameters'
-N =100 # number of radial grid points in soln.
+N =80 # number of radial grid points in soln.
 l_max =120# maximum spherical harmonic degree in soln.
 rad_ratio = 0.35 # spherical shell aspect ratio
 m = 0 # azimuthal symmetry order
@@ -32,7 +32,7 @@ bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 t0 = time() 
 
 # building the PDE matrix
-matrix_builder = Matrix_builder(N,rad_ratio,m,l_max)
+matrix_builder = Matrix_builder(N,rad_ratio,m,l_max,radial_method='finite_difference')
 PDE_mat = PDE_matrix_frame(matrix_builder.gen_PDE_matrix('tor',for_freq,ek),matrix_builder,ek,for_freq)
 
 # building the libration forcing RHS
