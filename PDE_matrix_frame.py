@@ -214,7 +214,7 @@ class Spatial_representation:
         self.dissipation = 1/2 * np.real(self.dissipation)
 
 
-        self.total_dissipation = 2*np.pi * np.trapz(np.sin(self.theta_grid) * np.trapz(self.s.mb.r_grid[::-1,np.newaxis]**2*self.dissipation[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
+        self.total_dissipation = 2*np.pi * np.trapezoid(np.sin(self.theta_grid) * np.trapezoid(self.s.mb.r_grid[::-1,np.newaxis]**2*self.dissipation[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
 
     def calc_total_kin(self):
         
@@ -224,7 +224,7 @@ class Spatial_representation:
         
         self.kinetic_energy = 1/4 * (np.abs(self.q_r)**2+np.abs(self.q_theta)**2+np.abs(self.q_phi)**2)
         
-        self.total_kinetic_energy = 2*np.pi * np.trapz(np.sin(self.theta_grid) * np.trapz(self.s.mb.r_grid[::-1,np.newaxis]**2*self.kinetic_energy[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
+        self.total_kinetic_energy = 2*np.pi * np.trapezoid(np.sin(self.theta_grid) * np.trapezoid(self.s.mb.r_grid[::-1,np.newaxis]**2*self.kinetic_energy[::-1,:],x=self.s.mb.r_grid[::-1],axis=0),x=self.theta_grid,axis=0)
     
     def calc_surface_power(self,full_calc=False):
         
@@ -236,16 +236,16 @@ class Spatial_representation:
         tau_theta_r = self.dtheta_q_r + self.dr_q_theta
         
         
-        self.power_cmb = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+self.q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=self.theta_grid,axis=0)
-        self.power_icb = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*np.conjugate(tau_phi_r[-1,:])+self.q_theta[-1,:]*np.conjugate(tau_theta_r[-1,:])),x=self.theta_grid,axis=0)
+        self.power_cmb = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*np.conjugate(tau_phi_r[0,:])+self.q_theta[0,:]*np.conjugate(tau_theta_r[0,:])),x=self.theta_grid,axis=0)
+        self.power_icb = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*np.conjugate(tau_phi_r[-1,:])+self.q_theta[-1,:]*np.conjugate(tau_theta_r[-1,:])),x=self.theta_grid,axis=0)
         
         
         if full_calc:
             
-            self.power_cmb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
-            self.power_cmb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
-            self.power_icb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
-            self.power_icb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapz(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
+            self.power_cmb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
+            self.power_cmb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_end**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[0,:]*tau_phi_r[0,:]+self.q_theta[0,:]*tau_theta_r[0,:]),x=self.theta_grid,axis=0)
+            self.power_icb_real_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.real(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
+            self.power_icb_imag_coeff = 2*np.pi * self.s.ek* self.s.mb.r_start**2* np.trapezoid(np.sin(self.theta_grid) * 0.5*np.imag(self.q_phi[-1,:]*tau_phi_r[-1,:]+self.q_theta[-1,:]*tau_theta_r[-1,:]),x=self.theta_grid,axis=0)
             
     def calc_advection(self):
         if not hasattr(self, 'dq_r_r'):
