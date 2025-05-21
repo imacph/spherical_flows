@@ -124,7 +124,7 @@ class Matrix_builder:
             return eval_mat_even,eval_mat_odd,df1_mat_even,df1_mat_odd,df2_mat_even,df2_mat_odd,df4_mat_even,df4_mat_odd
         
         elif self.radial_method == 'finite_difference':
-            print('tt')
+            
             eval_mat,df1_mat,df2_mat,df4_mat = self.gen_deriv_mats()
             df3_mat = df2_mat @ df1_mat
 

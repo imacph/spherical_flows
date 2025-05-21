@@ -111,47 +111,11 @@ class PDE_solution:
 
 
 
-
-    def calc_vel_field(self,spatial_rep):
-        
-
-        spatial_rep.q_r = np.tensordot(spatial_rep.sphrharm_eval_mat,self.pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2
-        spatial_rep.q_theta = (np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.q_phi = (-np.tensordot(spatial_rep.sphrharm_df1_mat,self.tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
-
-        
-    
-
-    
-    def calc_vel_grad(self,spatial_rep):
-        
-        if not hasattr(spatial_rep,'q_r'):
-            
-            self.calc_vel_field(spatial_rep)
-        
-        spatial_rep.dr_q_r = np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2 - 2 *spatial_rep.q_r/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.dr_q_theta = (np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr2_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis] - spatial_rep.q_theta/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.dr_q_phi = (-np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr2_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis] - spatial_rep.q_phi/self.mb.r_grid[:,np.newaxis]
-
-        spatial_rep.ptheta_q_r =  np.tensordot(spatial_rep.sphrharm_df1_mat,self.pol_arr*(spatial_rep.l_arr*(spatial_rep.l_arr+1))[:,np.newaxis],axes=1).T/self.mb.r_grid[:,np.newaxis]**2
-        spatial_rep.ptheta_q_theta = (np.tensordot(spatial_rep.sphrharm_df2_mat,self.dr_pol_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_df1_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.tor_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]**2*np.cos(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.ptheta_q_phi = (-np.tensordot(spatial_rep.sphrharm_df2_mat,self.tor_arr,axes=1).T+1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_df1_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-1j*self.mb.m*np.tensordot(spatial_rep.sphrharm_eval_mat,self.dr_pol_arr,axes=1).T/np.sin(spatial_rep.theta_grid)[np.newaxis,:]**2*np.cos(spatial_rep.theta_grid)[np.newaxis,:])/self.mb.r_grid[:,np.newaxis]
-
-        spatial_rep.dtheta_q_r = (spatial_rep.ptheta_q_r-spatial_rep.q_theta)/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.dphi_q_r = (1j*self.mb.m*spatial_rep.q_r/np.sin(spatial_rep.theta_grid)[np.newaxis,:]-spatial_rep.q_phi)/self.mb.r_grid[:,np.newaxis]
-
-        spatial_rep.dtheta_q_theta = (spatial_rep.ptheta_q_theta+spatial_rep.q_r)/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.dphi_q_theta = (1j*self.mb.m*spatial_rep.q_theta-np.cos(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_phi)/self.mb.r_grid[:,np.newaxis]/np.sin(spatial_rep.theta_grid)[np.newaxis,:]
-
-        spatial_rep.dtheta_q_phi = spatial_rep.ptheta_q_phi/self.mb.r_grid[:,np.newaxis]
-        spatial_rep.dphi_q_phi = (1j*self.mb.m*spatial_rep.q_phi+np.cos(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_theta + np.sin(spatial_rep.theta_grid)[np.newaxis,:]*spatial_rep.q_r) /self.mb.r_grid[:,np.newaxis]/np.sin(spatial_rep.theta_grid)[np.newaxis,:]
-
-
 class Spatial_representation:
     
-    def __init__(self,theta_grid,soln):
+    def __init__(self,theta_grid,PDE_soln):
         
-        self.s = soln
+        self.s = PDE_soln
         self.n_theta = len(theta_grid)
         self.theta_grid = theta_grid
 
@@ -184,12 +148,48 @@ class Spatial_representation:
         self.sphrharm_df2_mat = -self.sphrharm_df1_mat * np.cos(self.theta_grid[:,np.newaxis])/np.sin(self.theta_grid[:,np.newaxis])
         self.sphrharm_df2_mat +=  ((self.s.mb.m/np.sin(self.theta_grid[:,np.newaxis]))**2-self.l_arr*(self.l_arr+1)[np.newaxis,:]) * self.sphrharm_eval_mat
     
+    def calc_vel_field(self):
+            
+
+            self.q_r = np.tensordot(self.sphrharm_eval_mat,self.s.pol_arr*(self.l_arr*(self.l_arr+1))[:,np.newaxis],axes=1).T/self.s.mb.r_grid[:,np.newaxis]**2
+            self.q_theta = (np.tensordot(self.sphrharm_df1_mat,self.s.dr_pol_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.tor_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis]
+            self.q_phi = (-np.tensordot(self.sphrharm_df1_mat,self.s.tor_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.dr_pol_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis]
+
+
+    def calc_vel_grad(self):
+        
+        if not hasattr(self,'q_r'):
+            # if the velocity field has not been calculated yet, do it now
+            # only needs to check if one component has been calculated to 
+            # determine if the velocity field has been calculated
+            self.calc_vel_field()
+        
+        self.dr_q_r = np.tensordot(self.sphrharm_eval_mat,self.s.dr_pol_arr*(self.l_arr*(self.l_arr+1))[:,np.newaxis],axes=1).T/self.s.mb.r_grid[:,np.newaxis]**2 - 2 *self.q_r/self.s.mb.r_grid[:,np.newaxis]
+        self.dr_q_theta = (np.tensordot(self.sphrharm_df1_mat,self.s.dr2_pol_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.dr_tor_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis] - self.q_theta/self.s.mb.r_grid[:,np.newaxis]
+        self.dr_q_phi = (-np.tensordot(self.sphrharm_df1_mat,self.s.dr_tor_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.dr2_pol_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis] - self.q_phi/self.s.mb.r_grid[:,np.newaxis]
+
+        self.ptheta_q_r =  np.tensordot(self.sphrharm_df1_mat,self.s.pol_arr*(self.l_arr*(self.l_arr+1))[:,np.newaxis],axes=1).T/self.s.mb.r_grid[:,np.newaxis]**2
+        self.ptheta_q_theta = (np.tensordot(self.sphrharm_df2_mat,self.s.dr_pol_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_df1_mat,self.s.tor_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:]-1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.tor_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:]**2*np.cos(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis]
+        self.ptheta_q_phi = (-np.tensordot(self.sphrharm_df2_mat,self.s.tor_arr,axes=1).T+1j*self.s.mb.m*np.tensordot(self.sphrharm_df1_mat,self.s.dr_pol_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:]-1j*self.s.mb.m*np.tensordot(self.sphrharm_eval_mat,self.s.dr_pol_arr,axes=1).T/np.sin(self.theta_grid)[np.newaxis,:]**2*np.cos(self.theta_grid)[np.newaxis,:])/self.s.mb.r_grid[:,np.newaxis]
+
+        self.dtheta_q_r = (self.ptheta_q_r-self.q_theta)/self.s.mb.r_grid[:,np.newaxis]
+        self.dphi_q_r = (1j*self.s.mb.m*self.q_r/np.sin(self.theta_grid)[np.newaxis,:]-self.q_phi)/self.s.mb.r_grid[:,np.newaxis]
+
+        self.dtheta_q_theta = (self.ptheta_q_theta+self.q_r)/self.s.mb.r_grid[:,np.newaxis]
+        self.dphi_q_theta = (1j*self.s.mb.m*self.q_theta-np.cos(self.theta_grid)[np.newaxis,:]*self.q_phi)/self.s.mb.r_grid[:,np.newaxis]/np.sin(self.theta_grid)[np.newaxis,:]
+
+        self.dtheta_q_phi = self.ptheta_q_phi/self.s.mb.r_grid[:,np.newaxis]
+        self.dphi_q_phi = (1j*self.s.mb.m*self.q_phi+np.cos(self.theta_grid)[np.newaxis,:]*self.q_theta + np.sin(self.theta_grid)[np.newaxis,:]*self.q_r) /self.s.mb.r_grid[:,np.newaxis]/np.sin(self.theta_grid)[np.newaxis,:]
+
+
+            
+
     def calc_bulk_dissipation(self):
         
         
         if not hasattr(self, 'dq_r_r'):
             
-            self.s.calc_vel_grad(self)
+            self.calc_vel_grad()
         
         stress_rr = 2*self.s.ek*self.dr_q_r
         stress_rtheta = (self.dr_q_theta + self.dtheta_q_r)*self.s.ek
@@ -230,7 +230,7 @@ class Spatial_representation:
         
         if not hasattr(self, 'dq_r_r'):
             
-            self.s.calc_vel_grad(self)
+            self.calc_vel_grad()
         
         tau_phi_r =  self.dphi_q_r + self.dr_q_phi 
         tau_theta_r = self.dtheta_q_r + self.dr_q_theta
@@ -250,7 +250,7 @@ class Spatial_representation:
     def calc_advection(self):
         if not hasattr(self, 'dq_r_r'):
             
-            self.s.calc_vel_grad(self)
+            self.calc_vel_grad()
         self.mean_adv_r = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_r)+self.q_theta*np.conjugate(self.dtheta_q_r)+self.q_phi*np.conjugate(self.dphi_q_r))
         self.mean_adv_theta = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_theta)+self.q_theta*np.conjugate(self.dtheta_q_theta)+self.q_phi*np.conjugate(self.dphi_q_theta))
         self.mean_adv_phi = 1/2 * np.real(self.q_r*np.conjugate(self.dr_q_phi)+self.q_theta*np.conjugate(self.dtheta_q_phi)+self.q_phi*np.conjugate(self.dphi_q_phi))

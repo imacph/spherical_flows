@@ -60,8 +60,8 @@ n_theta = len(theta_grid)
 spat_rep = Spatial_representation(theta_grid,PDE_soln)
 
 # calculating velocity field and its gradients
-PDE_soln.calc_vel_field(spat_rep)
-PDE_soln.calc_vel_grad(spat_rep)
+spat_rep.calc_vel_field()
+spat_rep.calc_vel_grad()
 
 'shortening names'
 q_r,q_theta,q_phi = spat_rep.q_r,spat_rep.q_theta,spat_rep.q_phi
