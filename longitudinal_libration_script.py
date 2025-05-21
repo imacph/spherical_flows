@@ -3,18 +3,16 @@ from time import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
-
+'''spherical_flows imports'''
 from Matrix_builder import Matrix_builder
 from Boundary_rhs_builder import Boundary_rhs_builder
 from PDE_matrix_frame import PDE_matrix_frame,Spatial_representation
-
-
 
  
 'resolution and symmetry parameters'
 N =40 # number of radial grid points in soln.
 l_max =40# maximum spherical harmonic degree in soln.
-rad_ratio = 0. # spherical shell aspect ratio
+rad_ratio = 0.35 # spherical shell aspect ratio
 m = 0 # azimuthal symmetry order
 
 'libration parameters'
@@ -28,7 +26,7 @@ eps = Re*np.sqrt(ek)*(1-rad_ratio)
 # information about BCs to pass to solver
 bc_list = [['tor','t',1,eps*2*np.sqrt(np.pi/3)/(1-rad_ratio)**2]]
 'matrix construction and inverse problem solution'
-t0 = time() 
+t0 = time() # record initial time
 
 # building the PDE matrix
 matrix_builder = Matrix_builder(N,rad_ratio,m,l_max,radial_method='finite_difference')
@@ -88,13 +86,10 @@ field = np.real(q_phi*np.exp(1j*for_freq*(0)))
 #field = spat_rep.dissipation
 fig,ax = plt.subplots(1,1,figsize=(5,5),dpi=400)
 
-if rad_ratio > 0.0:
-    ss = np.array([[PDE_soln.mb.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[PDE_soln.mb.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
 
-if rad_ratio == 0.0:
-    ss = np.array([[PDE_soln.mb.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
-    zz = np.array([[PDE_soln.mb.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+
+ss = np.array([[PDE_soln.mb.r_grid[i]*np.sin(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
+zz = np.array([[PDE_soln.mb.r_grid[i]*np.cos(theta_grid[j]) for j in range(n_theta)] for i in range(N+1)])
 
 
 
@@ -121,7 +116,6 @@ thres = max(abs(vmin1),abs(vmax1))/15
 
 
 
-
 if vmin < 0:
     norm = colors.SymLogNorm(vmin = vmin1, vmax = vmax1, linthresh=thres)
     levels = -np.logspace(np.log10(thres),min_dec,100)[::-1]
@@ -139,14 +133,11 @@ elif vmin >= 0:
 
     cmap = 'hot'
 step = 1
-#norm = colors.TwoSlopeNorm(vcenter=0,vmin=vmin,vmax=vmax)
+
+
 p=ax.contourf(ss[::step,::step],zz[::step,::step],field[::step,::step],levels=levels,cmap=cmap,norm=norm)
 #cbar = fig.colorbar(p)
 #cbar.set_ticks([vmin,0,vmax])
-#cbar.ax.set_yticklabels([round(vmin,5),0,round(vmax,5)])
-
-#cbar.set_ticks([1e-6,1e-4,1e-2,1])
-#cbar.set_ticks([-1,-0.1,0.1,1])
 #cbar.ax.set_yticklabels([round(vmin,5),0,round(vmax,5)])
 
 
