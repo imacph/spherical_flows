@@ -2,7 +2,7 @@ import numpy as np
 from time import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-
+from scipy.sparse import linalg as spla
 '''spherical_flows imports'''
 from Matrix_builder import Matrix_builder
 from Boundary_rhs_builder import Boundary_rhs_builder
@@ -10,13 +10,13 @@ from PDE_matrix_frame import PDE_matrix_frame,Spatial_representation
 
  
 'resolution and symmetry parameters'
-N =40 # number of radial grid points in soln.
-l_max =40# maximum spherical harmonic degree in soln.
-rad_ratio = 0.35 # spherical shell aspect ratio
+N =120 # number of radial grid points in soln.
+l_max =120# maximum spherical harmonic degree in soln.
+rad_ratio = 0.0 # spherical shell aspect ratio
 m = 0 # azimuthal symmetry order
 
 'libration parameters'
-ek = 10**-4 # ekman number
+ek = 10**-3 # ekman number
 Re = 1 # reynolds number
 for_freq = 1. # forcing frequency
 
@@ -32,8 +32,12 @@ t0 = time() # record initial time
 matrix_builder = Matrix_builder(N,rad_ratio,m,l_max,radial_method='finite_difference')
 PDE_mat = PDE_matrix_frame(matrix_builder.gen_PDE_matrix('tor',for_freq,ek),matrix_builder,ek,for_freq)
 
-freq_matrix = matrix_builder.gen_freq_matrix('tor',for_freq)
+freq_matrix = matrix_builder.gen_freq_matrix('tor',1.)
 spatial_matrix = matrix_builder.gen_spatial_matrix('tor',ek)
+
+vals,vecs=spla.eigs(freq_matrix,k=2,M=spatial_matrix,sigma=np.sqrt(7/12),which='LI')
+
+print(1/vals[0])
 
 # building the libration forcing RHS
 rhs_builder = Boundary_rhs_builder(N,rad_ratio,m,l_max)
