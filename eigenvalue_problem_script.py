@@ -33,6 +33,7 @@ matrix_builder = Matrix_builder(N,rad_ratio,m,l_max,radial_method='finite_differ
 PDE_mat = PDE_matrix_frame(matrix_builder.gen_PDE_matrix('tor',for_freq,ek),matrix_builder,ek,for_freq)
 
 freq_matrix = matrix_builder.gen_freq_matrix('tor',for_freq)
+spatial_matrix = matrix_builder.gen_spatial_matrix('tor',ek)
 
 # building the libration forcing RHS
 rhs_builder = Boundary_rhs_builder(N,rad_ratio,m,l_max)
