@@ -175,7 +175,7 @@ class Matrix_builder:
         
         elif self.radial_method == 'finite_difference':
 
-            eval_mat = sp.identity(self.n_rad_max+1,dtype=complex)
+            eval_mat = sp.identity(self.n_rad_max+1,dtype=complex,format="csr")
             df1_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
             df2_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1))
 
@@ -204,7 +204,236 @@ class Matrix_builder:
 
             return eval_mat,df1_mat,df2_mat,df2_mat@df2_mat
 
+    def gen_block_row_freq(self,field,l,for_freq):
 
+        lp = l*(l+1)
+        lp2 = lp*lp
+
+        diag_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1),dtype=complex)
+
+        if self.rad_ratio > 0.0:
+
+            if field == 'toroidal':
+
+                diag_mat[1:-1,:] += (1j * lp*for_freq * self.eval_mat)[1:-1,:]
+
+            if field == 'poloidal':
+
+                diag_mat[2:-2,:] = 1j * lp*for_freq * lp * (self.orr_sqr_mat*self.eval_mat)[2:-2,:]
+                diag_mat[2:-2,:] +=-1j * lp*for_freq* self.df2_mat[2:-2,:]
+
+        if self.rad_ratio == 0.0:
+
+            if field == 'toroidal' and l % 2 == 0:
+
+                diag_mat[1:] += 1j * lp*for_freq * self.eval_mat_odd[1:]
+
+            elif field == 'toroidal':
+
+                diag_mat[1:] += 1j * lp*for_freq * self.eval_mat_even[1:]
+
+            elif field == 'poloidal' and l % 2 == 0:
+
+                diag_mat[2:] = 1j * lp*for_freq * lp * (self.orr_sqr_mat*self.eval_mat_odd)[2:]
+                diag_mat[2:] +=-1j * lp*for_freq* self.df2_mat_odd[2:]
+
+            elif field == 'poloidal':
+
+                diag_mat[2:] = 1j * lp*for_freq * lp * (self.orr_sqr_mat*self.eval_mat_even)[2:]
+                diag_mat[2:] +=-1j * lp*for_freq* self.df2_mat_even[2:]
+
+        return diag_mat
+    
+    def gen_block_row_spatial(self,field,l,ek):
+
+        lp = l*(l+1)
+        lp2 = lp*lp
+        
+        lower_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1),dtype=complex)
+        upper_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1),dtype=complex)
+        diag_mat = sp.csr_matrix((self.n_rad_max+1,self.n_rad_max+1),dtype=complex)
+        
+        if self.rad_ratio > 0.0:
+        
+            if field == 'toroidal':
+                
+                diag_mat[1:-1,:] += (1j * (-2*self.m) * self.eval_mat + ek*lp2*self.orr_sqr_mat*self.eval_mat)[1:-1,:]
+                diag_mat[1:-1,:] += -lp * ek * self.df2_mat[1:-1,:]
+                
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat[0,:]
+                    diag_mat[-1,:] = self.eval_mat[-1,:]
+                    #diag_mat[-1,:] = ( self.df1_mat-2*self.orr_mat * self.eval_mat)[-1,:]
+
+                elif self.radial_method == 'finite_difference':
+
+                    diag_mat[0,0] = 1
+                    diag_mat[-1,-1] = 1
+
+                
+                
+                
+                upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
+                
+                upper_mat[1:-1] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[1:-1]
+                upper_mat[1:-1] += -upper_fac * self.df1_mat[1:-1]
+    
+    
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
+                
+                lower_mat[1:-1] += lower_fac * l*(self.orr_mat*self.eval_mat)[1:-1]
+                lower_mat[1:-1] += -lower_fac * self.df1_mat[1:-1]
+                
+                
+            elif field == 'poloidal':
+                
+                diag_mat[2:-2,:] = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat)[2:-2,:]
+                diag_mat[2:-2,:] +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat)[2:-2,:]
+                diag_mat[2:-2,:] += 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat)[2:-2,:]
+                diag_mat[2:-2,:] +=-1j * (-2*self.m)* self.df2_mat[2:-2,:]
+                diag_mat[2:-2,:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat)[2:-2,:]
+                diag_mat[2:-2,:] += lp * ek * self.df4_mat[2:-2,:]
+                
+
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat[0,:]
+                    diag_mat[-1,:] = self.eval_mat[-1,:]
+                    diag_mat[1,:] = self.df1_mat[0,:]
+                    diag_mat[-2,:] = self.df1_mat[-1,:]
+                    #diag_mat[-2,:] = (self.df2_mat-2*self.orr_mat * self.df1_mat)[-1,:]
+                elif self.radial_method == 'finite_difference':
+
+                    diag_mat[0,0] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
+
+                    diag_mat[-1,-1] = 1
+                    diag_mat[-2,-1] = 1
+                    diag_mat[-2,-2] = self.r_grid[-2] - self.r_grid[-1]
+                
+                
+                upper_fac = 2*l*(l+2) * self.c_l[l-self.l_min+1]
+                
+                upper_mat[2:-2,:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat)[2:-2,:]
+                upper_mat[2:-2,:] += -upper_fac * self.df1_mat[2:-2,:]
+                
+            
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
+                
+                lower_mat[2:-2,:] += lower_fac * l*(self.orr_mat*self.eval_mat)[2:-2,:]
+                lower_mat[2:-2,:] += -lower_fac * self.df1_mat[2:-2,:]
+                
+            
+        
+        elif self.rad_ratio == 0.0:
+            
+            if field == 'toroidal' and l % 2 == 0:
+                
+                diag_mat[1:] += (1j * (-2*self.m) * self.eval_mat_odd + ek*lp2*self.orr_sqr_mat*self.eval_mat_odd)[1:]
+                diag_mat[1:] += -lp * ek * self.df2_mat_odd[1:]
+                
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_odd[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+
+                
+                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                
+                upper_mat[1:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_even)[1:]
+                upper_mat[1:] += -upper_fac * self.df1_mat_even[1:]
+    
+    
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
+                
+                lower_mat[1:] += lower_fac * l*(self.orr_mat*self.eval_mat_even)[1:]
+                lower_mat[1:] += -lower_fac * self.df1_mat_even[1:]
+                
+            elif field == 'toroidal':
+                
+                diag_mat[1:] += (1j * (-2*self.m) * self.eval_mat_even + ek*lp2*self.orr_sqr_mat*self.eval_mat_even)[1:]
+                diag_mat[1:] += -lp * ek * self.df2_mat_even[1:]
+                
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_even[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+
+                
+                upper_fac = 2*l*(l+2) * np.sqrt((l+1+self.m)*(l+1-self.m)/(2*l+1)/(2*l+3))
+                
+                upper_mat[1:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_odd)[1:]
+                upper_mat[1:] += -upper_fac * self.df1_mat_odd[1:]
+    
+    
+                lower_fac = 2*(l-1)*(l+1) * np.sqrt((l+self.m)*(l-self.m)/(2*l-1)/(2*l+1))
+                
+                lower_mat[1:] += lower_fac * l*(self.orr_mat*self.eval_mat_odd)[1:]
+                lower_mat[1:] += -lower_fac * self.df1_mat_odd[1:]
+                
+                
+            elif field == 'poloidal' and l % 2 == 0:
+                
+                diag_mat[2:] = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat_odd)[2:]
+                diag_mat[2:] +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat_odd)[2:]
+                diag_mat[2:] += 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat_odd)[2:]
+                diag_mat[2:] +=-1j * (-2*self.m)* self.df2_mat_odd[2:]
+                diag_mat[2:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_odd)[2:]
+                diag_mat[2:] += lp * ek * self.df4_mat_odd[2:]
+                
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_odd[0,:]
+                    diag_mat[1,:] = self.df1_mat_odd[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
+
+                    
+                
+
+
+                upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
+                
+                upper_mat[2:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_even)[2:]
+                upper_mat[2:] += -upper_fac * self.df1_mat_even[2:]
+                
+            
+                lower_fac = 2*(l-1)*(l+1) * self.c_l[l-self.l_min]
+                
+                lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_even)[2:]
+                lower_mat[2:] += -lower_fac * self.df1_mat_even[2:]
+                
+            elif field == 'poloidal':
+                
+                diag_mat[2:] = 1j * (-2*self.m) * lp * (self.orr_sqr_mat*self.eval_mat_even)[2:]
+                diag_mat[2:] +=  lp2 * ek * (lp - 6) * (self.orr_sqr_mat * self.orr_sqr_mat*self.eval_mat_even)[2:]
+                diag_mat[2:] += 4*lp2*ek * (self.orr_sqr_mat * self.orr_mat * self.df1_mat_even)[2:]
+                diag_mat[2:] +=-1j * (-2*self.m)* self.df2_mat_even[2:]
+                diag_mat[2:] += -2*lp2*ek * (self.orr_sqr_mat * self.df2_mat_even)[2:]
+                diag_mat[2:] += lp * ek * self.df4_mat_even[2:]
+                
+                if self.radial_method == 'chebyshev':
+                    diag_mat[0,:] = self.eval_mat_even[0,:]
+                    diag_mat[1,:] = self.df1_mat_even[0,:]
+                elif self.radial_method == 'finite_difference':
+                    diag_mat[0,0] = 1
+                    diag_mat[1,0] = 1
+                    diag_mat[1,1] = self.r_grid[1] - self.r_grid[0]
+
+
+                upper_fac = 2*l*(l+2) * self.c_l[l+1-self.l_min]
+                
+                upper_mat[2:] += -upper_fac * (l+1)*(self.orr_mat*self.eval_mat_odd)[2:]
+                upper_mat[2:] += -upper_fac * self.df1_mat_odd[2:]
+                
+            
+                lower_fac = 2*(l-1)*(l+1)* self.c_l[l-self.l_min]
+                
+                lower_mat[2:] += lower_fac * l*(self.orr_mat*self.eval_mat_odd)[2:]
+                lower_mat[2:] += -lower_fac * self.df1_mat_odd[2:]
+            
+        return diag_mat,lower_mat,upper_mat
 
     def gen_block_row(self,field,l,for_freq,ek):
         
@@ -397,8 +626,142 @@ class Matrix_builder:
             
         return diag_mat,lower_mat,upper_mat
 
+    def gen_spatial_matrix(self,odd_flag,ek):
+
+        
+        if odd_flag == 'tor':
+            
+            odd_field = 'toroidal'
+            even_field = 'poloidal'
+
+        elif odd_flag == 'pol':
+        
+            even_field = 'toroidal'
+            odd_field = 'poloidal'
+
+
+        bmat_array = [[None for i in range(self.n_l)] for j in range(self.n_l)]
+        
+        
+        l = self.l_min
+        i = l-self.l_min
+        
+        if l % 2 == 1:
+        
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(odd_field,l,ek)
+            
+        elif l % 2 == 0:
+            
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(even_field,l,ek)
+            
+            
+        bmat_array[i][i] = diag_mat
+        bmat_array[i][i+1] = upper_mat
+        
+        
+        for l in self.l_odd:
+            
+            i = l-self.l_min
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(odd_field,l,ek)
+            
+            bmat_array[i][i] = diag_mat
+            bmat_array[i][i+1] = upper_mat
+            bmat_array[i][i-1] = lower_mat
+            
+        for l in self.l_even:
+            
+            i = l-self.l_min
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(even_field,l,ek)
+            
+            bmat_array[i][i] = diag_mat
+            bmat_array[i][i+1] = upper_mat
+            bmat_array[i][i-1] = lower_mat
+            
+        l = self.l_max
+        i = l-self.l_min
+        if l % 2 == 1:
+        
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(odd_field,l,ek)
+            
+            
+        elif l % 2 == 0:
+            
+            diag_mat,lower_mat,upper_mat = self.gen_block_row_spatial(even_field,l,ek)
+            
+        
+        bmat_array[i][i] = diag_mat
+        bmat_array[i][i-1] = lower_mat
+        
     
+        return sp.bmat(bmat_array,format='csr')
     
+    def gen_freq_matrix(self,odd_flag,for_freq):
+
+        
+        if odd_flag == 'tor':
+            
+            odd_field = 'toroidal'
+            even_field = 'poloidal'
+
+        elif odd_flag == 'pol':
+        
+            even_field = 'toroidal'
+            odd_field = 'poloidal'
+
+
+        bmat_array = [[None for i in range(self.n_l)] for j in range(self.n_l)]
+        
+        
+        l = self.l_min
+        i = l-self.l_min
+        
+        if l % 2 == 1:
+        
+            diag_mat = self.gen_block_row_freq(odd_field,l,for_freq)
+            
+        elif l % 2 == 0:
+            
+            diag_mat = self.gen_block_row_freq(even_field,l,for_freq)
+            
+            
+        bmat_array[i][i] = diag_mat
+        
+        
+        
+        for l in self.l_odd:
+            
+            i = l-self.l_min
+            diag_mat = self.gen_block_row_freq(odd_field,l,for_freq)
+            
+            bmat_array[i][i] = diag_mat
+  
+            
+        for l in self.l_even:
+            
+            i = l-self.l_min
+            diag_mat = self.gen_block_row_freq(even_field,l,for_freq)
+            
+            bmat_array[i][i] = diag_mat
+
+            
+        l = self.l_max
+        i = l-self.l_min
+        if l % 2 == 1:
+        
+            diag_mat = self.gen_block_row_freq(odd_field,l,for_freq)
+            
+            
+        elif l % 2 == 0:
+            
+            diag_mat = self.gen_block_row_freq(even_field,l,for_freq)
+            
+        
+        bmat_array[i][i] = diag_mat
+ 
+        
+    
+        return sp.bmat(bmat_array,format='csr')
+
     def gen_PDE_matrix(self,odd_flag,for_freq,ek):
         
         if odd_flag == 'tor':
